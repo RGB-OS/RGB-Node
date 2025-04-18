@@ -1,0 +1,17 @@
+{
+    "mnemonic": "stereo birth depend harvest ladder industry swim suspect airport become diet coconut",
+    "xpub": "tpubDCofv3XCn2hibuuRUd6VrVH5q2pLjNnJh5Z5fysih2wavG6YkwLqBDQwvFfNrkWAk69gzVJMGwaJsQQ1b1wnb3GHydkUAjcqmC6CoEEq3w1",
+    "btcBalance": {
+        "vanilla": {
+            "settled": 0,
+            "future": 0,
+            "spendable": 0
+        },
+        "colored": {
+            "settled": 0,
+            "future": 0,
+            "spendable": 0
+        }
+    },
+    "address": "bcrt1ppuwempm888dza4q445y9crdjh5c24fpwscrasjxwtuedxaeexknsnppqjg"
+}
