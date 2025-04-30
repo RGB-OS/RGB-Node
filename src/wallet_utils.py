@@ -2,9 +2,15 @@ import os
 import json
 from rgb_lib import Wallet, WalletData, BitcoinNetwork, DatabaseType
 
-NETWORK = BitcoinNetwork.REGTEST
+env_network = int(os.getenv("NETWORK", "3"))
+NETWORK = BitcoinNetwork(env_network)
 BASE_PATH = "./data"
 vanilla_keychain = 1
+wallet_instances: dict[str, dict[str, object]] = {}
+INDEXER_URL = os.getenv('INDEXER_URL')
+
+if INDEXER_URL is None:
+    raise EnvironmentError("Missing required env var: INDEXER_URL")
 
 class WalletNotFoundError(Exception):
     pass
@@ -43,10 +49,14 @@ def create_wallet_instance(client_id: str):
         vanilla_keychain=vanilla_keychain,
     )
     wallet = Wallet(wallet_data)
-    online = wallet.go_online(False, "regtest.thunderstack.org:50001")
+    online = wallet.go_online(False,INDEXER_URL)
     return wallet, online
 
 def load_wallet_instance(client_id: str):
+    if client_id in wallet_instances:
+        instance = wallet_instances[client_id]
+        if instance.get("wallet") and instance.get("online"):
+            return instance["wallet"], instance["online"]
     config_path = get_wallet_path(client_id)
     print("load_wallet_instance",config_path)
     if not os.path.exists(config_path):
@@ -62,5 +72,14 @@ def load_wallet_instance(client_id: str):
         vanilla_keychain=vanilla_keychain,
     )
     wallet = Wallet(wallet_data)
-    online = wallet.go_online(False, "regtest.thunderstack.org:50001")
+    online = wallet.go_online(False, INDEXER_URL)
+    wallet_instances[client_id] = {
+        "wallet": wallet,
+        "online": online
+    }
     return wallet, online
+
+def refresh_wallet_instance(client_id: str):
+    if client_id in wallet_instances:
+        del wallet_instances[client_id]
+    return load_wallet_instance(client_id)

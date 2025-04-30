@@ -153,8 +153,9 @@ class RefreshRequestModel(BaseModel):
 class RgbInvoiceRequestModel(BaseModel):
     """Request model for RGB invoices."""
 
-    min_confirmations: int
+    min_confirmations: int = 1
     asset_id: str | None = None
+    amount: int | None = None
     duration_seconds: int = RGB_INVOICE_DURATION_SECONDS
 
 
