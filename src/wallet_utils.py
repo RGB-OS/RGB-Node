@@ -1,7 +1,7 @@
 import os
 import json
 from rgb_lib import Wallet, WalletData, BitcoinNetwork, DatabaseType
-
+print("NETWORK raw =", os.getenv("NETWORK"))
 env_network = int(os.getenv("NETWORK", "3"))
 NETWORK = BitcoinNetwork(env_network)
 BASE_PATH = "./data"
