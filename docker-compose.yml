@@ -1,9 +1,13 @@
-version: "3.9"
+version: '3.9'
 
 services:
-  thunderlink:
-    build: .
+  thunderlink-python:
+    build:
+      context: .
     ports:
       - "8000:8000"
     volumes:
-      - ./data:/app/data
+      - .:/app
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
