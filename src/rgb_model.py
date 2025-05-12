@@ -95,7 +95,7 @@ class Utxo(BaseModel):
 
 class Unspent(BaseModel):
     utxo: Utxo
-    rgb_allocations: RgbAllocation
+    rgb_allocations: List[RgbAllocation]
 
 class Balance(BaseModel):
     settled: int
