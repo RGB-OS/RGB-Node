@@ -1,8 +1,9 @@
+from typing import List, Optional
 from fastapi import HTTPException
 from pydantic import BaseModel
 from src.dependencies import get_wallet,create_wallet
 from rgb_lib import BitcoinNetwork, Wallet,AssetSchema
-from src.rgb_model import FailTransferRequestModel, IssueAssetNiaRequestModel, ListTransfersRequestModel, RefreshRequestModel, RgbInvoiceRequestModel
+from src.rgb_model import AssetNia, Balance, BtcBalance, FailTransferRequestModel, IssueAssetNiaRequestModel, ListTransfersRequestModel, ReceiveData, RefreshRequestModel, RegisterModel, RgbInvoiceRequestModel, SendResult, Transfer, Unspent
 from fastapi import APIRouter, Depends
 import os
 
@@ -24,6 +25,26 @@ class CreateUtxosBegin(BaseModel):
     size: int = 1000
     feeRate: int = 1
 
+class WitnessData(BaseModel):
+    amount_sat: int
+    blinding: Optional[int]
+
+class Recipient(BaseModel):
+    """Recipient model for asset transfer."""
+    recipient_id: str
+    witness_data: Optional[WitnessData] = None
+    amount: int
+    transport_endpoints: List[str]
+
+class SendAssetBeginRequestModel(BaseModel):
+    recipient_map: dict[str, List[Recipient]]
+    donation: bool = False
+    fee_rate: int = 1
+    min_confirmations: int = 1
+
+class SendAssetEndRequestModel(BaseModel):
+    signed_psbt: str
+
 class CreateUtxosEnd(BaseModel):
     signedPsbt: str
 class AssetBalanceRequest(BaseModel):
@@ -34,67 +55,80 @@ class InvoiceRequest(BaseModel):
     assetId: str
     amount: int
 
-@router.post("/wallet/register")
-def create_wallet(wallet_dep: tuple[Wallet, object]=Depends(create_wallet)):
+@router.post("/wallet/register", response_model=RegisterModel)
+def register_wallet(wallet_dep: tuple[Wallet, object]=Depends(create_wallet)):
     wallet, online = wallet_dep
     btc_balance = wallet.get_btc_balance(online, False)
     address = wallet.get_address()
     return { "address": address, "btc_balance": btc_balance }
 
-@router.post("/wallet/listunspents")
+@router.post("/wallet/listunspents",response_model=List[Unspent])
 def list_unspents(wallet_dep: tuple[Wallet, object]=Depends(get_wallet)):
     wallet, online = wallet_dep
     unspents = wallet.list_unspents(online, False, False)
     return unspents
 
-@router.post("/wallet/createutxosbegin")
+@router.post("/wallet/createutxosbegin",response_model=str)
 def create_utxos_begin(req: CreateUtxosBegin, wallet_dep: tuple[Wallet, object]=Depends(get_wallet)):
     wallet, online = wallet_dep
     psbt = wallet.create_utxos_begin(online, req.upTo, req.num, req.size, req.feeRate, False)
     return psbt
 
-@router.post("/wallet/createutxosend")
+@router.post("/wallet/createutxosend",response_model=int)
 def create_utxos_end(req: CreateUtxosEnd, wallet_dep: tuple[Wallet, object]=Depends(get_wallet)):
     wallet, online = wallet_dep
     result = wallet.create_utxos_end(online, req.signedPsbt, False)
     return result
 
-@router.post("/wallet/listassets")
+@router.post("/wallet/listassets",response_model=List[AssetSchema])
 def list_assets(wallet_dep: tuple[Wallet, object]=Depends(get_wallet)):
     wallet, online = wallet_dep
     wallet.sync(online)
     assets = wallet.list_assets([AssetSchema.NIA])
     return assets
 
-@router.post("/wallet/btcbalance")
+@router.post("/wallet/btcbalance",response_model=BtcBalance)
 def get_btc_balance(wallet_dep: tuple[Wallet, object]=Depends(get_wallet)):
     wallet, online = wallet_dep
     btc_balance = wallet.get_btc_balance(online, False)
     return btc_balance
 
-@router.post("/wallet/address")
+@router.post("/wallet/address",response_model=str)
 def get_address(wallet_dep: tuple[Wallet, object]=Depends(get_wallet)):
     wallet, online = wallet_dep
     address = wallet.get_address()
     return address
 
-@router.post("/wallet/issueassetnia")
+@router.post("/wallet/issueassetnia",response_model=AssetNia)
 def issue_asset_nia(req: IssueAssetNiaRequestModel, wallet_dep: tuple[Wallet, object]=Depends(get_wallet)):
     wallet, online = wallet_dep
     asset = wallet.issue_asset_nia(online, req.amounts, req.ticker, req.name, req.precision, False)
     return asset
 
-@router.post("/wallet/assetbalance")
+@router.post("/wallet/assetbalance",response_model=Balance)
 def get_asset_balance(req: AssetBalanceRequest, wallet_dep: tuple[Wallet, object]=Depends(get_wallet)):
     wallet, _ = wallet_dep
     balance = wallet.get_asset_balance(req.assetId)
     return balance
 
-@router.post("/blindreceive")
+@router.post("/wallet/sendbegin", response_model=str)
+def send_begin(req: SendAssetBeginRequestModel, wallet_dep: tuple[Wallet, object]=Depends(get_wallet)):
+    wallet, online = wallet_dep
+    psbt = wallet.send_begin(online, req.recipient_map, req.donation, req.fee_rate, req.min_confirmations)
+    return psbt
+
+@router.post("/wallet/sendend", response_model=SendResult)
+def send_begin(req: SendAssetEndRequestModel, wallet_dep: tuple[Wallet, object]=Depends(get_wallet)):
+    wallet, online = wallet_dep
+    result = wallet.send_end(online, req.signed_psbt, False)
+    return result
+
+@router.post("/blindreceive", response_model=ReceiveData)
 def generate_invoice(req: RgbInvoiceRequestModel, wallet_dep: tuple[Wallet, object]=Depends(get_wallet)):
     wallet, online = wallet_dep
     receive = wallet.blind_receive(req.asset_id, req.amount, 3600, [PROXY_URL], 1)
     return receive
+
 @router.post("/wallet/failtransfers")
 def failtransfers(req: FailTransferRequestModel, wallet_dep: tuple[Wallet, object]=Depends(get_wallet)):
     wallet, online = wallet_dep
@@ -111,7 +145,7 @@ def list_transaction(wallet_dep: tuple[Wallet, object]=Depends(get_wallet)):
     list_transactions = wallet.list_transactions(online, False)
     return list_transactions
 
-@router.post("/wallet/listtransfers")
+@router.post("/wallet/listtransfers",response_model=List[Transfer])
 def list_transfers(req:ListTransfersRequestModel, wallet_dep: tuple[Wallet, object]=Depends(get_wallet)):
     wallet, online = wallet_dep
     list_transfers = wallet.list_transfers(req.asset_id)

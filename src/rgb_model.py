@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from datetime import datetime
+import enum
+from typing import List, Optional
 
 from pydantic import BaseModel
 from pydantic import model_validator
@@ -11,7 +13,7 @@ from src.constant import FEE_RATE_FOR_CREATE_UTXOS
 from src.constant import NO_OF_UTXO
 from src.constant import RGB_INVOICE_DURATION_SECONDS
 from src.constant import UTXO_SIZE_SAT
-
+from rgb_lib import Wallet, TransferStatus,TransportType, TransferKind
 # -------------------- Helper models -----------------------
 
 class CommonException(Exception):
@@ -46,6 +48,9 @@ class TransactionTxModel(BaseModel):
 
         return values
 
+class RegisterModel(BaseModel):
+    address: str
+    btc_balance: BtcBalance
 
 class Media(BaseModel):
     """Model for list asset"""
@@ -73,6 +78,63 @@ class Token(BaseModel):
     attachments: dict[str, Media]
     reserves: bool
 
+class Outpoint(BaseModel):
+    txid: str
+    vout: int
+
+class RgbAllocation(BaseModel):
+    asset_id: Optional[str]
+    amount: int
+    settled: bool
+
+class Utxo(BaseModel):
+    outpoint: Outpoint
+    btc_amount: int
+    colorable: bool
+    exists: bool
+
+class Unspent(BaseModel):
+    utxo: Utxo
+    rgb_allocations: RgbAllocation
+
+class Balance(BaseModel):
+    settled: int
+    future: int
+    spendable: int
+
+class ReceiveData(BaseModel):
+    invoice: str
+    recipient_id: str
+    expiration_timestamp: Optional[int]
+    batch_transfer_idx: int
+
+class SendResult(BaseModel):
+    txid: str
+    batch_transfer_idx: int
+
+class BtcBalance(BaseModel):
+    vanilla: Balance
+    colored: Balance
+
+class AssetIface(enum.Enum):
+    RGB20 = 0
+    
+    RGB21 = 1
+    
+    RGB25 = 2
+
+class AssetNia(BaseModel):
+    asset_id: str
+    asset_iface: AssetIface
+    ticker: str
+    name: str
+    details: Optional[str]
+    precision: int
+    issued_supply: int
+    timestamp: int
+    added_at: int
+    balance: Balance
+    media: Optional[Media]
 
 class AssetModel(BaseModel):
     """Model for asset """
@@ -274,3 +336,25 @@ class RgbAssetPageLoadModel(BaseModel):
 class FailTransferResponseModel(BaseModel):
     """Response model for fail transfer"""
     transfers_changed: bool
+
+class TransferTransportEndpoint(BaseModel):
+    endpoint: str
+    transport_type: TransportType
+    used: bool
+
+class Transfer(BaseModel):
+    """Model representing a transfer."""
+
+    idx: int
+    batch_transfer_idx: int
+    created_at: int
+    updated_at: int
+    status: TransferStatus
+    amount: int
+    kind: TransferKind
+    txid: Optional[str]
+    recipient_id: Optional[str]
+    receive_utxo: Optional[Outpoint]
+    change_utxo: Optional[Outpoint]
+    expiration: Optional[int]
+    transport_endpoints: List[TransferTransportEndpoint]
