@@ -2,6 +2,8 @@ import os
 import json
 from rgb_lib import Wallet,restore_backup, WalletData, BitcoinNetwork, DatabaseType
 print("NETWORK raw =", os.getenv("NETWORK"))
+print("INDEXER_URL raw =", os.getenv("INDEXER_URL"))
+print("PROXY_ENDPOINT raw =", os.getenv("PROXY_ENDPOINT"))
 env_network = int(os.getenv("NETWORK", "3"))
 NETWORK = BitcoinNetwork(env_network)
 BASE_PATH = "./data"
