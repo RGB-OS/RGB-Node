@@ -66,7 +66,7 @@ def create_wallet_instance(client_id: str):
     )
     wallet = Wallet(wallet_data)
     print("prepere online",INDEXER_URL)
-    online = wallet.go_online(True,INDEXER_URL)
+    online = wallet.go_online(False,INDEXER_URL)
     print("wallet online")
     wallet_instances[client_id] = {
         "wallet": wallet,
