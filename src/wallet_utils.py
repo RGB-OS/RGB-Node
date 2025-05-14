@@ -54,7 +54,7 @@ def create_wallet_instance(client_id: str):
     if not os.path.exists(config_path):
         os.makedirs(get_wallet_path(client_id), exist_ok=True)
         # raise WalletNotFoundError(f"Wallet for client '{client_id}' does not exist.")
-    print("init wallet")
+    print("init wallet network:",NETWORK)
     wallet_data = WalletData(
         data_dir=get_wallet_path(client_id),
          bitcoin_network=NETWORK,
