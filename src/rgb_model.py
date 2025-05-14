@@ -81,6 +81,8 @@ class Token(BaseModel):
 class Outpoint(BaseModel):
     txid: str
     vout: int
+class Backup(BaseModel):
+    password: str
 
 class RgbAllocation(BaseModel):
     asset_id: Optional[str]

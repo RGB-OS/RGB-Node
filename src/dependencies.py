@@ -3,14 +3,14 @@ from typing import Tuple
 from rgb_lib import Wallet
 from src.wallet_utils import load_wallet_instance,create_wallet_instance  # adjust your actual import
 
-def get_wallet(xpub: str = Header(...)) -> Tuple[Wallet, object]:
+def get_wallet(xpub: str = Header(...)) -> Tuple[Wallet, object, str]:
     wallet, online = load_wallet_instance(xpub)
     if not wallet or not online:
         raise HTTPException(status_code=400, detail="Wallet not initialized")
-    return wallet, online
+    return wallet, online, xpub
 
-def create_wallet(xpub: str = Header(...)) -> Tuple[Wallet, object]:
+def create_wallet(xpub: str = Header(...)) -> Tuple[Wallet, object, str]:
     wallet, online = create_wallet_instance(xpub)
     if not wallet or not online:
         raise HTTPException(status_code=400, detail="Wallet not initialized")
-    return wallet, online
+    return wallet, online, xpub

@@ -1,11 +1,16 @@
 from typing import List, Optional
-from fastapi import HTTPException
+from fastapi import File, Form, HTTPException, UploadFile
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from src.dependencies import get_wallet,create_wallet
 from rgb_lib import BitcoinNetwork, Wallet,AssetSchema
-from src.rgb_model import AssetNia, Balance, BtcBalance, FailTransferRequestModel, IssueAssetNiaRequestModel, ListTransfersRequestModel, ReceiveData, RefreshRequestModel, RegisterModel, RgbInvoiceRequestModel, SendResult, Transfer, Unspent
+from src.rgb_model import AssetNia, Backup, Balance, BtcBalance, FailTransferRequestModel, IssueAssetNiaRequestModel, ListTransfersRequestModel, ReceiveData, RefreshRequestModel, RegisterModel, RgbInvoiceRequestModel, SendResult, Transfer, Unspent
 from fastapi import APIRouter, Depends
 import os
+from src.wallet_utils import BACKUP_PATH, get_backup_path, remove_backup_if_exists, restore_wallet_instance
+import shutil
+import uuid
+import rgb_lib
 
 env_network = int(os.getenv("NETWORK", "3"))
 NETWORK = BitcoinNetwork(env_network)
@@ -157,115 +162,43 @@ def refresh_wallet(wallet_dep: tuple[Wallet, object]=Depends(get_wallet)):
     refreshed_transfers = wallet.refresh(online,None, [], False)
     return refreshed_transfers
 
-@router.post("/wallet/drop")
-def drop_wallet():
-    path = "./data/wallet.json"
-    if os.path.exists(path):
-        os.remove(path)
-    return { "message": "Wallet config deleted" }
+@router.post("/wallet/backup")
+def create_backup(req:Backup, wallet_dep: tuple[Wallet, object,str]=Depends(get_wallet)):
+    wallet, online, xpub = wallet_dep
+    remove_backup_if_exists(xpub)
+    backup_path = get_backup_path(xpub)
+    wallet.backup(backup_path, req.password)
 
-# @app.post("/wallet/create")
-# def create_wallet(req: WatchOnly):
-#     print("Creating wallet...")
-#     wallet, online = create_wallet_instance(req.xpub)
-#     if not wallet or not online:
-#         raise HTTPException(status_code=400, detail="Wallet not initialized")
-#     btc_balance = wallet.get_btc_balance(online, False)
-#     address = wallet.get_address()
-#     return { "data":"","address":address,"btc_balance":btc_balance }
+    if not os.path.exists(backup_path):
+        raise HTTPException(status_code=500, detail="Backup file was not created")
 
-# @app.post("/wallet/list-unspents")
-# def list_unspents(req: WatchOnly):
-#     print("list-unspents",req.xpub)
-#     wallet, online = load_wallet_instance(req.xpub)
-#     print("list-load_wallet_instance")
-#     if not wallet or not online:
-#         raise HTTPException(status_code=400, detail="Wallet not initialized")
-#     unspents = wallet.list_unspents(online, False, False)
-#     address = wallet.get_address()
-#     return { "unspents": unspents, "address": address }
-
-# @app.post("/wallet/create-utxos-begin")
-# def create_utxos_begin(req: CreateUtxosBegin):
-#     print(req)
-#     wallet, online = load_wallet_instance(req.xpub)
-#     if not wallet or not online:
-#         raise HTTPException(status_code=400, detail="Wallet not initialized")
-#     psbt = wallet.create_utxos_begin(online, req.upTo, req.num, req.size,1,False)
-#     address = wallet.get_address()
-#     return { "psbt": psbt, address: address }
-
-# @app.post("/wallet/create-utxos-end")
-# def create_utxos_end(req: CreateUtxosEnd):
-#     wallet, online = load_wallet_instance(req.xpub)
-#     if not wallet or not online:
-#         raise HTTPException(status_code=400, detail="Wallet not initialized")
-
-#     result = wallet.create_utxos_end(online, req.signedPsbt, False)
-#     return { "utxosCreated": result }
-
-
-# @app.post("/wallet/list-assets")
-# def list_assets(req: WatchOnly):
-#     wallet, online = load_wallet_instance(req.xpub)
-#     if not wallet or not online:
-#         raise HTTPException(status_code=400, detail="Wallet not initialized")
-#     wallet.sync(online)
-#     assets = wallet.list_assets([AssetSchema.NIA])
-#     return { "assets": assets }
-
-# @app.post("/wallet/btc-balance")
-# def get_balance(req: WatchOnly):
-#     wallet, online = load_wallet_instance(req.xpub)
-#     if not wallet or not online:
-#         raise HTTPException(status_code=400, detail="Wallet not initialized")
-#     btc_balance = wallet.get_btc_balance(online, False)
-#     return { "btc_balance": btc_balance }
-
-# @app.post("/wallet/issue_asset_nia")
-# def issue_asset_nia(req: IssueAssetNiaRequestModel,xpub: str = Header(...)):
-#     wallet, online = load_wallet_instance(req.xpub)
-#     if not wallet or not online:
-#         raise HTTPException(status_code=400, detail="Wallet not initialized")
-#     issue_asset_nia = wallet.issue_asset_nia(online, req.amounts, req.ticker, req.name, req.precision, False)
-#     return { "issue_asset_nia": issue_asset_nia }
-
-# @app.post("/wallet/get-asset-balance")
-# def get_asset_balance(req: AssetBalanceRequest):
-#     wallet, online = load_wallet_instance(req.xpub)
-#     if not wallet or not online:
-#         raise HTTPException(status_code=400, detail="Wallet not initialized")
-#     asset_balance = wallet.get_asset_balance(req.assetId)
-#     return { "asset_balance": asset_balance }
-
-# @app.post("/blind-receive")
-# def generate_invoice(req: InvoiceRequest):
-#     wallet, online = load_wallet_instance(req.xpub)
-#     if not wallet or not online:
-#         raise HTTPException(status_code=400, detail="Wallet not initialized")
-#     receive = wallet.blind_receive(None, req.amount, None, [PROXY_URL], 1)
-#     return { "blind-receive": receive }
-
-
-# @app.get("/invoice/{invoice_id}/status")
-# def invoice_status(invoice_id: str):
-#     invoice = invoices.get(invoice_id)
-#     if not invoice:
-#         raise HTTPException(status_code=404, detail="Invoice not found")
-#     return { "status": invoice["status"] }
-
-
-# @app.post("/wallet/refresh")
-# def refresh_wallet(req: WatchOnly):
-#     wallet, online = load_wallet_instance(req.xpub)
-#     if not wallet or not online:
-#         raise HTTPException(status_code=400, detail="Wallet not initialized")
-#     wallet.refresh(online, None, [], False)
-#     return { "message": "Wallet refreshed" }
-
-
-# @app.post("/wallet/drop")
-# def drop_wallet():
-#     if os.path.exists("./data/wallet.json"):
-#         os.remove("./data/wallet.json")
-#     return { "message": "Wallet config deleted" }
+    return {
+        "message": "Backup created successfully",
+        "download_url": f"/wallet/backup/{xpub}"
+    }
+@router.get("/wallet/backup/{backup_id}")
+def get_backup(backup_id):
+    backup_path = get_backup_path(backup_id)
+    if not os.path.isfile(backup_path):
+        raise HTTPException(status_code=404, detail="Backup file not found")
+    return FileResponse(
+        path=backup_path,
+        media_type="application/octet-stream",
+        filename=f"{backup_id}.backup"
+    )
+@router.post("/wallet/restore")
+def restore_wallet(
+    file: UploadFile = File(...),
+    password: str = Form(...),
+    xpub: str = Form(...),
+):
+    remove_backup_if_exists(xpub)
+    backup_path = get_backup_path(xpub)
+    with open(backup_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+    try:
+        # Restore wallet from backup
+        restore_wallet_instance(xpub, password, backup_path)
+        return {"message": "Wallet restored successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to restore wallet: {str(e)}")
