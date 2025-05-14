@@ -11,7 +11,7 @@ RESTORED_PATH = './data'
 BACKUP_PATH = './backup'
 vanilla_keychain = 1
 wallet_instances: dict[str, dict[str, object]] = {}
-INDEXER_URL = os.getenv('INDEXER_URL')
+INDEXER_URL = str(os.getenv('INDEXER_URL'))
 
 if INDEXER_URL is None:
     raise EnvironmentError("Missing required env var: INDEXER_URL")
@@ -66,7 +66,7 @@ def create_wallet_instance(client_id: str):
     )
     wallet = Wallet(wallet_data)
     print("prepere online",INDEXER_URL)
-    online = wallet.go_online(False,INDEXER_URL)
+    online = wallet.go_online(True,INDEXER_URL)
     print("wallet online")
     wallet_instances[client_id] = {
         "wallet": wallet,
