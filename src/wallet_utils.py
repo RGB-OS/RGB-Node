@@ -54,6 +54,7 @@ def create_wallet_instance(client_id: str):
     if not os.path.exists(config_path):
         os.makedirs(get_wallet_path(client_id), exist_ok=True)
         # raise WalletNotFoundError(f"Wallet for client '{client_id}' does not exist.")
+    print("init wallet")
     wallet_data = WalletData(
         data_dir=get_wallet_path(client_id),
          bitcoin_network=NETWORK,
@@ -64,7 +65,9 @@ def create_wallet_instance(client_id: str):
         vanilla_keychain=vanilla_keychain,
     )
     wallet = Wallet(wallet_data)
+    print("prepere online",INDEXER_URL)
     online = wallet.go_online(False,INDEXER_URL)
+    print("wallet online")
     wallet_instances[client_id] = {
         "wallet": wallet,
         "online": online
