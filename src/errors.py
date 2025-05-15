@@ -1,6 +1,6 @@
 from fastapi import Request
 from fastapi.responses import JSONResponse
-from rgb_lib import rgb_lib
+import rgb_lib
 import logging
 
 logger = logging.getLogger(__name__)
