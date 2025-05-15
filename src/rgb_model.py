@@ -52,6 +52,29 @@ class RegisterModel(BaseModel):
     address: str
     btc_balance: BtcBalance
 
+class WitnessData(BaseModel):
+    amount_sat: int
+    blinding: Optional[int]
+
+class Recipient(BaseModel):
+    """Recipient model for asset transfer."""
+    recipient_id: str
+    witness_data: Optional[WitnessData] = None
+    amount: int
+    transport_endpoints: List[str]
+    
+class SendAssetBeginRequestModel(BaseModel):
+    invoice: str | None = None
+    asset_id: str| None = None
+    recipient_id: str= None
+    amount: int= None
+
+class SendAssetBeginModel(BaseModel):
+    recipient_map: dict[str, List[Recipient]]
+    donation: bool = False
+    fee_rate: int = 1
+    min_confirmations: int = 1
+
 class Media(BaseModel):
     """Model for list asset"""
     file_path: str
@@ -118,7 +141,7 @@ class BtcBalance(BaseModel):
     vanilla: Balance
     colored: Balance
 
-class AssetIface(enum.Enum):
+class AssetIface(enum.IntEnum):
     RGB20 = 0
     
     RGB21 = 1
@@ -257,8 +280,8 @@ class FailTransferRequestModel(BaseModel):
 
 class AssetBalanceResponseModel(Balance):
     """Response model for asset balance."""
-    offchain_outbound: int
-    offchain_inbound: int
+    offchain_outbound: int = 0
+    offchain_inbound: int = 0
 
 
 class CreateUtxosResponseModel(StatusModel):

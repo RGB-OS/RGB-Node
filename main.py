@@ -1,6 +1,6 @@
 from dotenv import load_dotenv
 from fastapi.responses import JSONResponse
-load_dotenv()
+load_dotenv(override=True)
 from src.errors import generic_exception_handler, rgb_lib_exception_handler
 from src.wallet_utils import WalletNotFoundError
 from fastapi import FastAPI,Request

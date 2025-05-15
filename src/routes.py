@@ -4,7 +4,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from src.dependencies import get_wallet,create_wallet
 from rgb_lib import BitcoinNetwork, Wallet,AssetSchema
-from src.rgb_model import AssetNia, Backup, Balance, BtcBalance, FailTransferRequestModel, IssueAssetNiaRequestModel, ListTransfersRequestModel, ReceiveData, RefreshRequestModel, RegisterModel, RgbInvoiceRequestModel, SendResult, Transfer, Unspent
+from src.rgb_model import AssetNia, Backup, Balance, BtcBalance, DecodeRgbInvoiceRequestModel, DecodeRgbInvoiceResponseModel, FailTransferRequestModel, GetAssetResponseModel, IssueAssetNiaRequestModel, ListTransfersRequestModel, ReceiveData, Recipient, RefreshRequestModel, RegisterModel, RgbInvoiceRequestModel, SendAssetBeginModel, SendAssetBeginRequestModel, SendResult, Transfer, Unspent
 from fastapi import APIRouter, Depends
 import os
 from src.wallet_utils import BACKUP_PATH, get_backup_path, remove_backup_if_exists, restore_wallet_instance
@@ -30,35 +30,17 @@ class CreateUtxosBegin(BaseModel):
     size: int = 1000
     feeRate: int = 1
 
-class WitnessData(BaseModel):
-    amount_sat: int
-    blinding: Optional[int]
 
-class Recipient(BaseModel):
-    """Recipient model for asset transfer."""
-    recipient_id: str
-    witness_data: Optional[WitnessData] = None
-    amount: int
-    transport_endpoints: List[str]
-
-class SendAssetBeginRequestModel(BaseModel):
-    recipient_map: dict[str, List[Recipient]]
-    donation: bool = False
-    fee_rate: int = 1
-    min_confirmations: int = 1
 
 class SendAssetEndRequestModel(BaseModel):
     signed_psbt: str
 
 class CreateUtxosEnd(BaseModel):
     signedPsbt: str
+
 class AssetBalanceRequest(BaseModel):
-    xpub: str
     assetId: str
-class InvoiceRequest(BaseModel):
-    xpub: str
-    assetId: str
-    amount: int
+
 
 @router.post("/wallet/register", response_model=RegisterModel)
 def register_wallet(wallet_dep: tuple[Wallet, object,str]=Depends(create_wallet)):
@@ -85,7 +67,7 @@ def create_utxos_end(req: CreateUtxosEnd, wallet_dep: tuple[Wallet, object,str]=
     result = wallet.create_utxos_end(online, req.signedPsbt, False)
     return result
 
-@router.post("/wallet/listassets",response_model=List[AssetSchema])
+@router.post("/wallet/listassets",response_model=GetAssetResponseModel)
 def list_assets(wallet_dep: tuple[Wallet, object,str]=Depends(get_wallet)):
     wallet, online,xpub = wallet_dep
     wallet.sync(online)
@@ -107,7 +89,7 @@ def get_address(wallet_dep: tuple[Wallet, object,str]=Depends(get_wallet)):
 @router.post("/wallet/issueassetnia",response_model=AssetNia)
 def issue_asset_nia(req: IssueAssetNiaRequestModel, wallet_dep: tuple[Wallet, object,str]=Depends(get_wallet)):
     wallet, online,str = wallet_dep
-    asset = wallet.issue_asset_nia(online, req.amounts, req.ticker, req.name, req.precision, False)
+    asset = wallet.issue_asset_nia(online, req.ticker, req.name, req.precision, req.amounts)
     return asset
 
 @router.post("/wallet/assetbalance",response_model=Balance)
@@ -116,10 +98,42 @@ def get_asset_balance(req: AssetBalanceRequest, wallet_dep: tuple[Wallet, object
     balance = wallet.get_asset_balance(req.assetId)
     return balance
 
-@router.post("/wallet/sendbegin", response_model=str)
+@router.post("/wallet/decodergbinvoice",response_model=DecodeRgbInvoiceResponseModel)
+def decode_rgb_invoice(req:DecodeRgbInvoiceRequestModel, wallet_dep: tuple[Wallet, object,str]=Depends(get_wallet) ):
+    wallet, online,xpub = wallet_dep
+    invoice_data = rgb_lib.Invoice(req.invoice).invoice_data()
+    print("invoice data", invoice_data)
+    return invoice_data
+
+@router.post("/wallet/sendbegin")
 def send_begin(req: SendAssetBeginRequestModel, wallet_dep: tuple[Wallet, object,str]=Depends(get_wallet)):
     wallet, online,xpub = wallet_dep
-    psbt = wallet.send_begin(online, req.recipient_map, req.donation, req.fee_rate, req.min_confirmations)
+    invoice_data = rgb_lib.Invoice(req.invoice).invoice_data()
+    print("request data",xpub, req.asset_id, req.amount)
+    print("invoice data", invoice_data)
+
+    resolved_amount = invoice_data.amount if invoice_data.amount is not None else req.amount
+    if resolved_amount is None:
+        raise HTTPException(status_code=400, detail="Amount is required")
+
+    recipient_map = {
+        invoice_data.asset_id or req.asset_id: [
+            Recipient(
+                recipient_id=invoice_data.recipient_id,
+                amount=resolved_amount,
+                transport_endpoints=invoice_data.transport_endpoints
+            )
+        ]
+    }
+    print("invoice data", recipient_map)
+    send_model = SendAssetBeginModel(
+        recipient_map=recipient_map,
+        donation=False,
+        fee_rate=1,
+        min_confirmations=1
+    )
+    
+    psbt = wallet.send_begin(online, send_model.recipient_map, send_model.donation, send_model.fee_rate, send_model.min_confirmations)
     return psbt
 
 @router.post("/wallet/sendend", response_model=SendResult)

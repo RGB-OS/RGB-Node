@@ -11,7 +11,7 @@ RESTORED_PATH = './data'
 BACKUP_PATH = './backup'
 vanilla_keychain = 1
 wallet_instances: dict[str, dict[str, object]] = {}
-INDEXER_URL = str(os.getenv('INDEXER_URL'))
+INDEXER_URL = os.getenv('INDEXER_URL')
 
 if INDEXER_URL is None:
     raise EnvironmentError("Missing required env var: INDEXER_URL")
