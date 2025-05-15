@@ -153,8 +153,6 @@ def failtransfers(req: FailTransferRequestModel, wallet_dep: tuple[Wallet, objec
     wallet, online,xpub = wallet_dep
     print("Failing transfers",req.batch_transfer_idx)
     failed = wallet.fail_transfers(online, req.batch_transfer_idx, req.no_asset_only, req.skip_sync)
-    # receive = wallet.blind_receive(req.asset_id, req.amount, None, ["rpc://regtest.thunderstack.org:3000/json-rpc"], 1)
-    # receive = wallet.witness_receive(req.asset_id, req.amount, None, ["rpc://regtest.thunderstack.org:3000/json-rpc"], 1)
     print("Failing res",failed)
     return {'failed': failed}
 
