@@ -190,7 +190,7 @@ class TransportEndpoint(BaseModel):
 class AssetIdModel(BaseModel):
     """Request model for asset balance."""
 
-    asset_id: str
+    asset_id: str | None = None
 
 
 class CreateUtxosRequestModel(BaseModel):
