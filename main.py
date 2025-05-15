@@ -5,7 +5,7 @@ from src.errors import generic_exception_handler, rgb_lib_exception_handler
 from src.wallet_utils import WalletNotFoundError
 from fastapi import FastAPI,Request
 from src.routes import router 
-from rgb_lib import rgb_lib
+import rgb_lib
 
 
 
