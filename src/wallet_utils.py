@@ -49,6 +49,12 @@ def load_wallet_config(client_id: str):
         return json.load(f)
 
 def create_wallet_instance(client_id: str):
+
+    if client_id in wallet_instances:
+        instance = wallet_instances[client_id]
+        if instance.get("wallet") and instance.get("online"):
+            return instance["wallet"], instance["online"]
+        
     config_path = get_wallet_path(client_id)
 
     if not os.path.exists(config_path):
@@ -79,6 +85,7 @@ def upload_backup(client_id: str):
     backup_path = get_backup_path(client_id)
   
 def restore_wallet_instance(client_id: str, password: str,backup_path: str):
+    
     restore_path = get_restored_wallet_path(client_id)
     if not os.path.exists(restore_path):
         os.makedirs(get_restored_wallet_path(client_id), exist_ok=True)
