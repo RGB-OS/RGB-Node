@@ -194,6 +194,7 @@ def get_backup(backup_id):
     backup_path = get_backup_path(backup_id)
     if not os.path.isfile(backup_path):
         raise HTTPException(status_code=404, detail="Backup file not found")
+    
     return FileResponse(
         path=backup_path,
         media_type="application/octet-stream",
