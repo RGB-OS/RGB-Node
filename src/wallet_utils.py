@@ -51,10 +51,10 @@ def load_wallet_config(client_id: str):
 
 def create_wallet_instance(client_id: str):
 
-    if client_id in wallet_instances:
-        instance = wallet_instances[client_id]
-        if instance.get("wallet") and instance.get("online"):
-            return instance["wallet"], instance["online"]
+    # if client_id in wallet_instances:
+    #     instance = wallet_instances[client_id]
+    #     if instance.get("wallet") and instance.get("online"):
+    #         return instance["wallet"], instance["online"]
         
     config_path = get_wallet_path(client_id)
 
@@ -94,7 +94,7 @@ def restore_wallet_instance(client_id: str, password: str,backup_path: str):
     restore_backup(backup_path, password, restore_path)
     wallet_data = WalletData(
         data_dir=restore_path,
-         bitcoin_network=NETWORK,
+        bitcoin_network=NETWORK,
         database_type=DatabaseType.SQLITE,
         pubkey=client_id,
         mnemonic=None,
