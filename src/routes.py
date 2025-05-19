@@ -175,6 +175,12 @@ def refresh_wallet(wallet_dep: tuple[Wallet, object,str]=Depends(get_wallet)):
     refreshed_transfers = wallet.refresh(online,None, [], False)
     return refreshed_transfers
 
+@router.post("/wallet/sync")
+def wallet_sync(wallet_dep: tuple[Wallet, object,str]=Depends(get_wallet)):
+    wallet, online,xpub = wallet_dep
+    wallet.sync(online)
+    return {"message": "Wallet synced successfully"}
+
 @router.post("/wallet/backup")
 def create_backup(req:Backup, wallet_dep: tuple[Wallet, object,str]=Depends(get_wallet)):
     wallet, online, xpub = wallet_dep
