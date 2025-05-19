@@ -48,6 +48,7 @@ def load_wallet_config(client_id: str):
     with open(path, "r") as f:
         return json.load(f)
 
+
 def create_wallet_instance(client_id: str):
 
     if client_id in wallet_instances:
