@@ -97,8 +97,8 @@ def get_asset_balance(req: AssetBalanceRequest, wallet_dep: tuple[Wallet, object
     wallet, _,xpub = wallet_dep
     balance = wallet.get_asset_balance(req.assetId)
     return balance
-
-@router.post("/wallet/decodergbinvoice",response_model=DecodeRgbInvoiceResponseModel)
+# ,response_model=DecodeRgbInvoiceResponseModel
+@router.post("/wallet/decodergbinvoice")
 def decode_rgb_invoice(req:DecodeRgbInvoiceRequestModel, wallet_dep: tuple[Wallet, object,str]=Depends(get_wallet) ):
     wallet, online,xpub = wallet_dep
     invoice_data = rgb_lib.Invoice(req.invoice).invoice_data()
