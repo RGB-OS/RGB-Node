@@ -51,10 +51,12 @@ def load_wallet_config(client_id: str):
 
 def create_wallet_instance(client_id: str):
 
-    # if client_id in wallet_instances:
-    #     instance = wallet_instances[client_id]
-    #     if instance.get("wallet") and instance.get("online"):
-    #         return instance["wallet"], instance["online"]
+    if client_id in wallet_instances:
+        instance = wallet_instances[client_id]
+        if instance.get("wallet") and instance.get("online"):
+            w = instance.get("wallet")
+            instance["online"] = w.go_online(False,INDEXER_URL)
+            return instance["wallet"], instance["online"]
         
     config_path = get_wallet_path(client_id)
 
