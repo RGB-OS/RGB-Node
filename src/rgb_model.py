@@ -294,7 +294,7 @@ class DecodeRgbInvoiceResponseModel(BaseModel):
     recipient_id: str
     asset_iface: str | None = None
     asset_id: str | None = None
-    amount: str | None = None
+    amount: str | int | None = None
     network: str
     expiration_timestamp: int
     transport_endpoints: list[str]
