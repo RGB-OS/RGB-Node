@@ -144,7 +144,7 @@ class SignPSBT(BaseModel):
 
 @router.post("/test/sign")
 def sign_psbt(req:SignPSBT):
-    wallet,online = test_wallet_instance(req.wallet_id, req.mnemonic)
+    wallet,online = test_wallet_instance(req.wallet_id,req.xpub, req.mnemonic)
     print("signing psbt",req.psbt)
     signed_psbt = wallet.sign_psbt(req.psbt)
 

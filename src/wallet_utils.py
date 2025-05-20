@@ -48,7 +48,7 @@ def load_wallet_config(client_id: str):
     with open(path, "r") as f:
         return json.load(f)
 
-def test_wallet_instance(client_id: str,mnemonic: str = None):
+def test_wallet_instance(client_id: str,xpub,mnemonic: str = None):
     if client_id in wallet_instances:
         instance = wallet_instances[client_id]
         if instance.get("wallet") and instance.get("online"):
@@ -64,7 +64,7 @@ def test_wallet_instance(client_id: str,mnemonic: str = None):
         data_dir=get_wallet_path(client_id),
         bitcoin_network=NETWORK,
         database_type=DatabaseType.SQLITE,
-        pubkey=client_id,
+        pubkey=xpub,
         mnemonic=mnemonic,
         max_allocations_per_utxo=1,
         vanilla_keychain=vanilla_keychain,
