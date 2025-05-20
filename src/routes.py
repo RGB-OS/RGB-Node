@@ -7,7 +7,7 @@ from rgb_lib import BitcoinNetwork, Wallet,AssetSchema
 from src.rgb_model import AssetNia, Backup, Balance, BtcBalance, DecodeRgbInvoiceRequestModel, DecodeRgbInvoiceResponseModel, FailTransferRequestModel, GetAssetResponseModel, IssueAssetNiaRequestModel, ListTransfersRequestModel, ReceiveData, Recipient, RefreshRequestModel, RegisterModel, RgbInvoiceRequestModel, SendAssetBeginModel, SendAssetBeginRequestModel, SendResult, Transfer, Unspent
 from fastapi import APIRouter, Depends
 import os
-from src.wallet_utils import BACKUP_PATH, create_wallet_instance, get_backup_path, remove_backup_if_exists, restore_wallet_instance
+from src.wallet_utils import BACKUP_PATH, create_wallet_instance, get_backup_path, remove_backup_if_exists, restore_wallet_instance, test_wallet_instance
 import shutil
 import uuid
 import rgb_lib
@@ -137,15 +137,15 @@ def send_begin(req: SendAssetBeginRequestModel, wallet_dep: tuple[Wallet, object
     return psbt
 
 class SignPSBT(BaseModel):
+    mnemonic: str
     psbt: str
     wallet_id: str
     xpub: str
 
 @router.post("/test/sign")
 def sign_psbt(req:SignPSBT):
-    wallet,online = create_wallet_instance(req.wallet_id)
+    wallet,online = test_wallet_instance(req.wallet_id, req.mnemonic)
     print("signing psbt",req.psbt)
-
     signed_psbt = wallet.sign_psbt(req.psbt)
 
     print("signed_psbt", signed_psbt)
