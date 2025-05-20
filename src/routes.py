@@ -149,7 +149,7 @@ def sign_psbt(req:SignPSBT):
     signed_psbt = wallet.sign_psbt(req.psbt)
 
     print("signed_psbt", signed_psbt)
-    return {signed_psbt}
+    return {"signed_psbt":signed_psbt}
 
 @router.post("/wallet/sendend", response_model=SendResult)
 def send_begin(req: SendAssetEndRequestModel, wallet_dep: tuple[Wallet, object,str]=Depends(get_wallet)):
