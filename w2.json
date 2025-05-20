@@ -1,0 +1,186 @@
+{
+    "unsigned_tx": {
+        "version": 1,
+        "lock_time": 284440,
+        "input": [
+            {
+                "previous_output": "b1e2f151d602b2bf586b05a311ccc4bf53fe48ae9e4353ce31f02895706f26f4:0",
+                "script_sig": "",
+                "sequence": 4294967294,
+                "witness": []
+            }
+        ],
+        "output": [
+            {
+                "value": 1000,
+                "script_pubkey": "512078f45d9c1ca958c02e1fbe56fc65f89423fdd8279a5d3293dbffec2fbe930a06"
+            },
+            {
+                "value": 1000,
+                "script_pubkey": "51208d59f9cedd6087d40617e1a599e850e12525a59b94d40cf086ef2e9eca06f512"
+            },
+            {
+                "value": 1000,
+                "script_pubkey": "51203f5877bfb2f6fb7affc3935ba0c18154320d6d0b2b6299e3eaed3742c767b823"
+            },
+            {
+                "value": 96448,
+                "script_pubkey": "51202a2654a72006aeff4806dd9f0b3a2fe51b78d5b091b49e29014c2e76b244f9ff"
+            },
+            {
+                "value": 1000,
+                "script_pubkey": "5120e8ef690d8695f92972d894b60fbb181fe7ffea02aa7702181d58ad054d374426"
+            }
+        ]
+    },
+    "version": 0,
+    "xpub": {},
+    "proprietary": [],
+    "unknown": [],
+    "inputs": [
+        {
+            "non_witness_utxo": null,
+            "witness_utxo": {
+                "value": 100732,
+                "script_pubkey": "51208cbe56955067f517979f4a22cf73d90e3fc54f600256bbc6eed7dc4753a831be"
+            },
+            "partial_sigs": {},
+            "sighash_type": null,
+            "redeem_script": null,
+            "witness_script": null,
+            "bip32_derivation": [],
+            "final_script_sig": null,
+            "final_script_witness": null,
+            "ripemd160_preimages": {},
+            "sha256_preimages": {},
+            "hash160_preimages": {},
+            "hash256_preimages": {},
+            "tap_key_sig": null,
+            "tap_script_sigs": [],
+            "tap_scripts": [],
+            "tap_key_origins": [
+                [
+                    "c5280be1e419fc5444722ec1540d0e4fb4ced3f8b90597ad9e070f20f4717fbd",
+                    [
+                        [],
+                        [
+                            "8656bb4f",
+                            "1/1"
+                        ]
+                    ]
+                ]
+            ],
+            "tap_internal_key": "c5280be1e419fc5444722ec1540d0e4fb4ced3f8b90597ad9e070f20f4717fbd",
+            "tap_merkle_root": null,
+            "proprietary": [],
+            "unknown": []
+        }
+    ],
+    "outputs": [
+        {
+            "redeem_script": null,
+            "witness_script": null,
+            "bip32_derivation": [],
+            "tap_internal_key": "24e6fdd94688229a9f34d334de13052ab90d26711443a690f3541fde55d049c7",
+            "tap_tree": null,
+            "tap_key_origins": [
+                [
+                    "24e6fdd94688229a9f34d334de13052ab90d26711443a690f3541fde55d049c7",
+                    [
+                        [],
+                        [
+                            "8656bb4f",
+                            "9/4"
+                        ]
+                    ]
+                ]
+            ],
+            "proprietary": [],
+            "unknown": []
+        },
+        {
+            "redeem_script": null,
+            "witness_script": null,
+            "bip32_derivation": [],
+            "tap_internal_key": "25949924d50fc0aa344e9a3e36a3be18764b3b524036a2518d8be1c3fc4ada8e",
+            "tap_tree": null,
+            "tap_key_origins": [
+                [
+                    "25949924d50fc0aa344e9a3e36a3be18764b3b524036a2518d8be1c3fc4ada8e",
+                    [
+                        [],
+                        [
+                            "8656bb4f",
+                            "9/7"
+                        ]
+                    ]
+                ]
+            ],
+            "proprietary": [],
+            "unknown": []
+        },
+        {
+            "redeem_script": null,
+            "witness_script": null,
+            "bip32_derivation": [],
+            "tap_internal_key": "f36702a12cfdd0ef7e51d17781a00731a37072c25a69ef7079aea684a6c651e1",
+            "tap_tree": null,
+            "tap_key_origins": [
+                [
+                    "f36702a12cfdd0ef7e51d17781a00731a37072c25a69ef7079aea684a6c651e1",
+                    [
+                        [],
+                        [
+                            "8656bb4f",
+                            "9/6"
+                        ]
+                    ]
+                ]
+            ],
+            "proprietary": [],
+            "unknown": []
+        },
+        {
+            "redeem_script": null,
+            "witness_script": null,
+            "bip32_derivation": [],
+            "tap_internal_key": "6543faeb522d98d6920e3ded42c7bde6bb6010ac837d3149c34809e53011f79c",
+            "tap_tree": null,
+            "tap_key_origins": [
+                [
+                    "6543faeb522d98d6920e3ded42c7bde6bb6010ac837d3149c34809e53011f79c",
+                    [
+                        [],
+                        [
+                            "8656bb4f",
+                            "1/4"
+                        ]
+                    ]
+                ]
+            ],
+            "proprietary": [],
+            "unknown": []
+        },
+        {
+            "redeem_script": null,
+            "witness_script": null,
+            "bip32_derivation": [],
+            "tap_internal_key": "47a01414e8dc8755bef5f904e6c4c205b613feac5961b31fb641d40afad3e5de",
+            "tap_tree": null,
+            "tap_key_origins": [
+                [
+                    "47a01414e8dc8755bef5f904e6c4c205b613feac5961b31fb641d40afad3e5de",
+                    [
+                        [],
+                        [
+                            "8656bb4f",
+                            "9/5"
+                        ]
+                    ]
+                ]
+            ],
+            "proprietary": [],
+            "unknown": []
+        }
+    ]
+}

@@ -7,7 +7,7 @@ from rgb_lib import BitcoinNetwork, Wallet,AssetSchema
 from src.rgb_model import AssetNia, Backup, Balance, BtcBalance, DecodeRgbInvoiceRequestModel, DecodeRgbInvoiceResponseModel, FailTransferRequestModel, GetAssetResponseModel, IssueAssetNiaRequestModel, ListTransfersRequestModel, ReceiveData, Recipient, RefreshRequestModel, RegisterModel, RgbInvoiceRequestModel, SendAssetBeginModel, SendAssetBeginRequestModel, SendResult, Transfer, Unspent
 from fastapi import APIRouter, Depends
 import os
-from src.wallet_utils import BACKUP_PATH, get_backup_path, remove_backup_if_exists, restore_wallet_instance
+from src.wallet_utils import BACKUP_PATH, create_wallet_instance, get_backup_path, remove_backup_if_exists, restore_wallet_instance
 import shutil
 import uuid
 import rgb_lib
@@ -135,6 +135,21 @@ def send_begin(req: SendAssetBeginRequestModel, wallet_dep: tuple[Wallet, object
     
     psbt = wallet.send_begin(online, send_model.recipient_map, send_model.donation, send_model.fee_rate, send_model.min_confirmations)
     return psbt
+
+class SignPSBT(BaseModel):
+    psbt: str
+    wallet_id: str
+    xpub: str
+
+@router.post("/test/sign")
+def sign_psbt(req:SignPSBT):
+    wallet,online = create_wallet_instance(req.wallet_id)
+    print("signing psbt",req.psbt)
+
+    signed_psbt = wallet.sign_psbt(req.psbt)
+
+    print("signed_psbt", signed_psbt)
+    return {signed_psbt}
 
 @router.post("/wallet/sendend", response_model=SendResult)
 def send_begin(req: SendAssetEndRequestModel, wallet_dep: tuple[Wallet, object,str]=Depends(get_wallet)):

@@ -1,0 +1,111 @@
+{
+    "unsigned_tx": {
+        "version": 1,
+        "lock_time": 283538,
+        "input": [
+            {
+                "previous_output": "b5a96d50faea9bb65519b0a80687e5a67cfc32f955c8a459963c3cb64df712df:1",
+                "script_sig": "",
+                "sequence": 4294967294,
+                "witness": []
+            }
+        ],
+        "output": [
+            {
+                "value": 483683,
+                "script_pubkey": "51209c75e03f68406c2015626b2843ab627668d85ad5fdd495c218816d6d018e688d"
+            },
+            {
+                "value": 1000,
+                "script_pubkey": "5120bbe7142dfd95e4ecb2c89ac69e09ffeb94c92f975b0fef14e19697aafcb06d28"
+            }
+        ]
+    },
+    "version": 0,
+    "xpub": {},
+    "proprietary": [],
+    "unknown": [],
+    "inputs": [
+        {
+            "non_witness_utxo": null,
+            "witness_utxo": {
+                "value": 484838,
+                "script_pubkey": "5120f2216f3008852768d239ea871a43b9f44bbf60fbb9c4f938b2a49bcf1b62b7ea"
+            },
+            "partial_sigs": {},
+            "sighash_type": null,
+            "redeem_script": null,
+            "witness_script": null,
+            "bip32_derivation": [],
+            "final_script_sig": null,
+            "final_script_witness": null,
+            "ripemd160_preimages": {},
+            "sha256_preimages": {},
+            "hash160_preimages": {},
+            "hash256_preimages": {},
+            "tap_key_sig": null,
+            "tap_script_sigs": [],
+            "tap_scripts": [],
+            "tap_key_origins": [
+                [
+                    "76cec6b7cdbce9111739145df6261fd7ab13d7ff9de3a451d147998de50fa6b0",
+                    [
+                        [],
+                        [
+                            "af09267b",
+                            "1/27"
+                        ]
+                    ]
+                ]
+            ],
+            "tap_internal_key": "76cec6b7cdbce9111739145df6261fd7ab13d7ff9de3a451d147998de50fa6b0",
+            "tap_merkle_root": null,
+            "proprietary": [],
+            "unknown": []
+        }
+    ],
+    "outputs": [
+        {
+            "redeem_script": null,
+            "witness_script": null,
+            "bip32_derivation": [],
+            "tap_internal_key": "742213a013c25f21f27a2f794c5ddd3a38bf7af1b066b19d4faa4b0b113642eb",
+            "tap_tree": null,
+            "tap_key_origins": [
+                [
+                    "742213a013c25f21f27a2f794c5ddd3a38bf7af1b066b19d4faa4b0b113642eb",
+                    [
+                        [],
+                        [
+                            "af09267b",
+                            "1/32"
+                        ]
+                    ]
+                ]
+            ],
+            "proprietary": [],
+            "unknown": []
+        },
+        {
+            "redeem_script": null,
+            "witness_script": null,
+            "bip32_derivation": [],
+            "tap_internal_key": "34bdc9183475f24471438cf64c2a5ee4a8c751b7d8d5cd895ed5476c0d8671bd",
+            "tap_tree": null,
+            "tap_key_origins": [
+                [
+                    "34bdc9183475f24471438cf64c2a5ee4a8c751b7d8d5cd895ed5476c0d8671bd",
+                    [
+                        [],
+                        [
+                            "af09267b",
+                            "9/39"
+                        ]
+                    ]
+                ]
+            ],
+            "proprietary": [],
+            "unknown": []
+        }
+    ]
+}

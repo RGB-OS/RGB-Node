@@ -1,0 +1,136 @@
+{
+    "unsigned_tx": {
+        "version": 1,
+        "lock_time": 283185,
+        "input": [
+            {
+                "previous_output": "aa3493bc007b108f6c6c10a207c32166cec755eddb1eb164b9bf308149520544:0",
+                "script_sig": "",
+                "sequence": 4294967294,
+                "witness": []
+            }
+        ],
+        "output": [
+            {
+                "value": 1000,
+                "script_pubkey": "51200aaf00a42fbde7bb293262249ad7bd2dacdaee582fdc97ae51b08a30ae3f9a6c"
+            },
+            {
+                "value": 484838,
+                "script_pubkey": "5120681f8e11ee4d10e319062ee8f96a72c1f44e01673d104297542e46e50186b02d"
+            },
+            {
+                "value": 1000,
+                "script_pubkey": "51203b37c8d78e1b1553f0ab8d58b98446f64bfafa31764f20bf1c334370296016be"
+            }
+        ]
+    },
+    "version": 0,
+    "xpub": {},
+    "proprietary": [],
+    "unknown": [],
+    "inputs": [
+        {
+            "non_witness_utxo": null,
+            "witness_utxo": {
+                "value": 487036,
+                "script_pubkey": "5120cd208d52cb77928a327a318a116a18657a4cab3b4a53a5fdcf3fceccbee8af68"
+            },
+            "partial_sigs": {},
+            "sighash_type": null,
+            "redeem_script": null,
+            "witness_script": null,
+            "bip32_derivation": [],
+            "final_script_sig": null,
+            "final_script_witness": null,
+            "ripemd160_preimages": {},
+            "sha256_preimages": {},
+            "hash160_preimages": {},
+            "hash256_preimages": {},
+            "tap_key_sig": null,
+            "tap_script_sigs": [],
+            "tap_scripts": [],
+            "tap_key_origins": [
+                [
+                    "11f756e3521d64bd45144d0d3a8d44bd2a95154c41f706d934d132f6ca8715b5",
+                    [
+                        [],
+                        [
+                            "af09267b",
+                            "1/14"
+                        ]
+                    ]
+                ]
+            ],
+            "tap_internal_key": "11f756e3521d64bd45144d0d3a8d44bd2a95154c41f706d934d132f6ca8715b5",
+            "tap_merkle_root": null,
+            "proprietary": [],
+            "unknown": []
+        }
+    ],
+    "outputs": [
+        {
+            "redeem_script": null,
+            "witness_script": null,
+            "bip32_derivation": [],
+            "tap_internal_key": "94c92b0cd57bd6c60ef0584ea7560a3072a9c88c6e1049035a19ce0c475a3565",
+            "tap_tree": null,
+            "tap_key_origins": [
+                [
+                    "94c92b0cd57bd6c60ef0584ea7560a3072a9c88c6e1049035a19ce0c475a3565",
+                    [
+                        [],
+                        [
+                            "af09267b",
+                            "9/31"
+                        ]
+                    ]
+                ]
+            ],
+            "proprietary": [],
+            "unknown": []
+        },
+        {
+            "redeem_script": null,
+            "witness_script": null,
+            "bip32_derivation": [],
+            "tap_internal_key": "817af154707514b79bc210b1bdcedc5dd0067671ea47a799dbf4fee95ceba5e7",
+            "tap_tree": null,
+            "tap_key_origins": [
+                [
+                    "817af154707514b79bc210b1bdcedc5dd0067671ea47a799dbf4fee95ceba5e7",
+                    [
+                        [],
+                        [
+                            "af09267b",
+                            "1/24"
+                        ]
+                    ]
+                ]
+            ],
+            "proprietary": [],
+            "unknown": []
+        },
+        {
+            "redeem_script": null,
+            "witness_script": null,
+            "bip32_derivation": [],
+            "tap_internal_key": "df14890c47300dce5eaaff41f0e100d3be2c117c71371215a060cf794ca96111",
+            "tap_tree": null,
+            "tap_key_origins": [
+                [
+                    "df14890c47300dce5eaaff41f0e100d3be2c117c71371215a060cf794ca96111",
+                    [
+                        [],
+                        [
+                            "af09267b",
+                            "9/30"
+                        ]
+                    ]
+                ]
+            ],
+            "proprietary": [],
+            "unknown": []
+        }
+    ]
+}
