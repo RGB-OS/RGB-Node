@@ -48,7 +48,9 @@ def load_wallet_config(client_id: str):
     with open(path, "r") as f:
         return json.load(f)
 
-def test_wallet_instance(client_id: str,xpub,mnemonic: str = None):
+
+def create_wallet_instance(xpub_van: str,xpub_col: str):
+    client_id=xpub_van
     if client_id in wallet_instances:
         instance = wallet_instances[client_id]
         if instance.get("wallet") and instance.get("online"):
@@ -64,38 +66,8 @@ def test_wallet_instance(client_id: str,xpub,mnemonic: str = None):
         data_dir=get_wallet_path(client_id),
         bitcoin_network=NETWORK,
         database_type=DatabaseType.SQLITE,
-        pubkey=xpub,
-        mnemonic=mnemonic,
-        max_allocations_per_utxo=1,
-        vanilla_keychain=vanilla_keychain,
-    )
-    wallet = Wallet(wallet_data)
-    print("prepere online",INDEXER_URL)
-    online = wallet.go_online(False,INDEXER_URL)
-    print("wallet online")
-    wallet_instances[client_id] = {
-        "wallet": wallet,
-        "online": online
-    }
-    return wallet, online
-
-def create_wallet_instance(client_id: str):
-    if client_id in wallet_instances:
-        instance = wallet_instances[client_id]
-        if instance.get("wallet") and instance.get("online"):
-            return instance["wallet"], instance["online"]
-        
-    config_path = get_wallet_path(client_id)
-
-    if not os.path.exists(config_path):
-        os.makedirs(get_wallet_path(client_id), exist_ok=True)
-        # raise WalletNotFoundError(f"Wallet for client '{client_id}' does not exist.")
-    print("init wallet network:",NETWORK)
-    wallet_data = WalletData(
-        data_dir=get_wallet_path(client_id),
-        bitcoin_network=NETWORK,
-        database_type=DatabaseType.SQLITE,
-        pubkey=client_id,
+        account_xpub_vanilla=xpub_van,
+        account_xpub_colored=xpub_col,
         mnemonic=None,
         max_allocations_per_utxo=1,
         vanilla_keychain=vanilla_keychain,
@@ -114,8 +86,8 @@ def upload_backup(client_id: str):
     remove_backup_if_exists(client_id)
     backup_path = get_backup_path(client_id)
   
-def restore_wallet_instance(client_id: str, password: str,backup_path: str):
-    
+def restore_wallet_instance(xpub_van: str,xpub_col: str, password: str,backup_path: str):
+    client_id = xpub_van
     restore_path = get_restored_wallet_path(client_id)
     if not os.path.exists(restore_path):
         os.makedirs(get_restored_wallet_path(client_id), exist_ok=True)
@@ -125,7 +97,8 @@ def restore_wallet_instance(client_id: str, password: str,backup_path: str):
         data_dir=restore_path,
         bitcoin_network=NETWORK,
         database_type=DatabaseType.SQLITE,
-        pubkey=client_id,
+        account_xpub_vanilla=xpub_van,
+        account_xpub_colored=xpub_col,
         mnemonic=None,
         max_allocations_per_utxo=1,
         vanilla_keychain=vanilla_keychain,
@@ -134,8 +107,8 @@ def restore_wallet_instance(client_id: str, password: str,backup_path: str):
     online = wallet.go_online(False,INDEXER_URL)
     return wallet, online
 
-def load_wallet_instance(client_id: str):
-
+def load_wallet_instance(xpub_van: str,xpub_col: str):
+    client_id=xpub_van
     if client_id in wallet_instances:
         instance = wallet_instances[client_id]
         if instance.get("wallet") and instance.get("online"):
@@ -149,7 +122,8 @@ def load_wallet_instance(client_id: str):
         data_dir=get_wallet_path(client_id),
         bitcoin_network=NETWORK,
         database_type=DatabaseType.SQLITE,
-        pubkey=client_id,
+        account_xpub_vanilla=xpub_van,
+        account_xpub_colored=xpub_col,
         mnemonic=None,
         max_allocations_per_utxo=1,
         vanilla_keychain=vanilla_keychain,
