@@ -93,7 +93,7 @@ def get_address(wallet_dep: tuple[Wallet, object,str,str]=Depends(get_wallet)):
 @router.post("/wallet/issueassetnia",response_model=AssetNia)
 def issue_asset_nia(req: IssueAssetNiaRequestModel, wallet_dep: tuple[Wallet, object,str,str]=Depends(get_wallet)):
     wallet, online,xpub_van, xpub_col = wallet_dep
-    asset = wallet.issue_asset_nia(online, req.ticker, req.name, req.precision, req.amounts)
+    asset = wallet.issue_asset_nia(req.ticker, req.name, req.precision, req.amounts)
     return asset
 
 @router.post("/wallet/assetbalance",response_model=Balance)
