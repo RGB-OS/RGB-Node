@@ -150,7 +150,7 @@ class AssetIface(enum.IntEnum):
 
 class AssetNia(BaseModel):
     asset_id: str
-    asset_iface: AssetIface
+    # asset_iface: AssetIface
     ticker: str
     name: str
     details: Optional[str]
@@ -164,7 +164,7 @@ class AssetNia(BaseModel):
 class AssetModel(BaseModel):
     """Model for asset """
     asset_id: str
-    asset_iface: str
+    # asset_iface: str
     ticker: str | None = None
     name: str
     details: str | None
@@ -292,7 +292,7 @@ class DecodeRgbInvoiceResponseModel(BaseModel):
     """Response model for decoding RGB invoices."""
 
     recipient_id: str
-    asset_iface: str | None = None
+    # asset_iface: str | None = None
     asset_id: str | None = None
     amount: str | int | None = None
     network: str
