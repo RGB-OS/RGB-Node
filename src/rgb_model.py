@@ -262,7 +262,6 @@ class SendAssetRequestModel(BaseModel):
 class ListTransfersRequestModel(AssetIdModel):
     """Request model for listing asset transfers."""
 
-
 class GetAssetMediaModelRequestModel(BaseModel):
     """Response model for get asset medial api"""
     digest: str
