@@ -267,7 +267,6 @@ class GetAssetMediaModelRequestModel(BaseModel):
     """Response model for get asset medial api"""
     digest: str
 
-
 class FailTransferRequestModel(BaseModel):
     """Response model for fail transfer"""
     batch_transfer_idx: int
