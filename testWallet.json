@@ -50,3 +50,18 @@
     "account_xpub_colored": "tpubDCd8oh5vYEmEqvdyafVqXqystFsi7CXBYG3gLL8vN9YFDYZt8ojePkqYyuNYtLQKrPfaSBrDcWsopisDzuyTmRfwkN3F6Bkh5EGZKgopeLz",
     "account_xpub_colored_fingerprint": "49b74c05"
 }
+{
+    "mnemonic": "hidden bridge wait spread voice opera this puppy hair case robust orange",
+    "xpub": "tpubD6NzVbkrYhZ4XSQNzwMtU1pPV5ndXz2oBEH7ZhoZcNXgfTugf2FsSGQcNtWg3yJeYGCGfCkrjT6VCnv3AFeXfXxskHZPJ68GNKWuddz68vD",
+    "account_xpub_vanilla": "tpubDCM3Y5V4rT8kQwaxGGo7PCFcoS5rQbFn1Y6HMF3BP1dnGuAMYFBepdTRcBYaSdsKd2StRgayPWx6FxcmCAmpgSFNnp5oGwJtjNjHKfArzVB",
+    "account_xpub_colored": "tpubDDcs7v1L1iNERjCvKSeMdKNu62xPvZ5zJ3Yx48puWMabnL2kWfumjoKZvvA7rzUMkWaAQQPDb6UL4Q98HvGAitjDMqvJH6bJdbLQ99iV6ST",
+    "account_xpub_colored_fingerprint": "17dfce20"
+}
+
+{
+    "mnemonic": "property pizza awesome group melt wise science phrase barrel crumble profit shy",
+    "xpub": "tpubD6NzVbkrYhZ4XnCSYytpTCVk4WXadS3pwSzmFm145bXptkeufr4fYawkPcjVf63c2nwvUV3WE7PEYo1AgnAdQyHYpp57HuLR4Fbx3Ug6TDd",
+    "account_xpub_vanilla": "tpubDCuHGLXnvNfXeyWyQ1RdxP5KWh3cZ61BzUiRG6wbGiorQiBKmcwXmXdLxh3vaPeVzsPHSPTsq7wd47LhA8PGkLEWAZdSdjYgVHpogisSje4",
+    "account_xpub_colored": "tpubDCeBKFE97VGCDHoWWGWQTdYdtczPvQbF8fsfvgDr8BtVnridaiKFetL7QMGTYyfvF4rnnxiypPz2XHjYi7hvRZWo8eWdmyL9MEjnyKVmoZ2",
+    "account_xpub_colored_fingerprint": "3d37a02b"
+}

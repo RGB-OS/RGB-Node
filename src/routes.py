@@ -7,7 +7,7 @@ from rgb_lib import BitcoinNetwork, Wallet,AssetSchema
 from src.rgb_model import AssetNia, Backup, Balance, BtcBalance, DecodeRgbInvoiceRequestModel, DecodeRgbInvoiceResponseModel, FailTransferRequestModel, GetAssetResponseModel, IssueAssetNiaRequestModel, ListTransfersRequestModel, ReceiveData, Recipient, RefreshRequestModel, RegisterModel, RgbInvoiceRequestModel, SendAssetBeginModel, SendAssetBeginRequestModel, SendResult, Transfer, Unspent
 from fastapi import APIRouter, Depends
 import os
-from src.wallet_utils import BACKUP_PATH, create_wallet_instance, get_backup_path, remove_backup_if_exists, restore_wallet_instance
+from src.wallet_utils import BACKUP_PATH, create_wallet_instance, get_backup_path, remove_backup_if_exists, restore_wallet_instance, test_wallet_instance
 import shutil
 import uuid
 import rgb_lib
@@ -27,8 +27,8 @@ class CreateUtxosBegin(BaseModel):
     mnemonic: str = None
     upTo: bool = False
     num: int = 5
-    size: int = 1000
-    feeRate: int = 1
+    size: int = 32500
+    feeRate: int = 5
 
 
 
@@ -132,8 +132,8 @@ def send_begin(req: SendAssetBeginRequestModel, wallet_dep: tuple[Wallet, object
     print("invoice data", recipient_map)
     send_model = SendAssetBeginModel(
         recipient_map=recipient_map,
-        donation=False,
-        fee_rate=1,
+        donation=True,
+        fee_rate=5,
         min_confirmations=1
     )
     
@@ -143,17 +143,17 @@ def send_begin(req: SendAssetBeginRequestModel, wallet_dep: tuple[Wallet, object
 class SignPSBT(BaseModel):
     mnemonic: str
     psbt: str
-    wallet_id: str
-    xpub: str
+    xpub_van: str
+    xpub_col: str
 
-# @router.post("/test/sign")
-# def sign_psbt(req:SignPSBT):
-#     wallet,online = test_wallet_instance(req.wallet_id,req.xpub, req.mnemonic)
-#     print("signing psbt",req.psbt)
-#     signed_psbt = wallet.sign_psbt(req.psbt)
+@router.post("/wallet/sign")
+def sign_psbt(req:SignPSBT):
+    wallet,online = test_wallet_instance(req.xpub_van,req.xpub_col, req.mnemonic)
+    print("signing psbt",req.psbt)
+    signed_psbt = wallet.sign_psbt(req.psbt)
 
-#     print("signed_psbt", signed_psbt)
-#     return {"signed_psbt":signed_psbt}
+    print("signed_psbt", signed_psbt)
+    return signed_psbt
 
 @router.post("/wallet/sendend", response_model=SendResult)
 def send_begin(req: SendAssetEndRequestModel, wallet_dep: tuple[Wallet, object,str,str]=Depends(get_wallet)):

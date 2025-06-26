@@ -72,7 +72,7 @@ class SendAssetBeginRequestModel(BaseModel):
 class SendAssetBeginModel(BaseModel):
     recipient_map: dict[str, List[Recipient]]
     donation: bool = False
-    fee_rate: int = 1
+    fee_rate: int = 5
     min_confirmations: int = 1
 
 class Media(BaseModel):

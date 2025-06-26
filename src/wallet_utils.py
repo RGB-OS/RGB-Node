@@ -107,6 +107,35 @@ def restore_wallet_instance(xpub_van: str,xpub_col: str, password: str,backup_pa
     online = wallet.go_online(False,INDEXER_URL)
     return wallet, online
 
+def test_wallet_instance(xpub_van: str,xpub_col: str,mnemonic: str = None):
+    client_id=xpub_van
+    # if client_id in wallet_instances:
+    #     instance = wallet_instances[client_id]
+    #     if instance.get("wallet") and instance.get("online"):
+    #         return instance["wallet"], instance["online"]
+    # config_path = get_wallet_path(client_id)
+    # print("load_wallet_instance",config_path)
+    # if not os.path.exists(config_path):
+    #     os.makedirs(get_wallet_path(client_id), exist_ok=True)
+
+    wallet_data = WalletData(
+        data_dir=get_wallet_path(client_id),
+        bitcoin_network=NETWORK,
+        database_type=DatabaseType.SQLITE,
+        account_xpub_vanilla=xpub_van,
+        account_xpub_colored=xpub_col,
+        mnemonic=mnemonic,
+        max_allocations_per_utxo=1,
+        vanilla_keychain=vanilla_keychain,
+    )
+    wallet = Wallet(wallet_data)
+    online = wallet.go_online(False, INDEXER_URL)
+    wallet_instances[client_id] = {
+        "wallet": wallet,
+        "online": online
+    }
+    return wallet, online
+
 def load_wallet_instance(xpub_van: str,xpub_col: str):
     client_id=xpub_van
     if client_id in wallet_instances:
