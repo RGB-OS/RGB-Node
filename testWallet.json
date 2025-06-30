@@ -65,3 +65,11 @@
     "account_xpub_colored": "tpubDCeBKFE97VGCDHoWWGWQTdYdtczPvQbF8fsfvgDr8BtVnridaiKFetL7QMGTYyfvF4rnnxiypPz2XHjYi7hvRZWo8eWdmyL9MEjnyKVmoZ2",
     "account_xpub_colored_fingerprint": "3d37a02b"
 }
+
+{
+    "mnemonic": "leader thing gold pulp mango recall volume suspect rebel off artist manage",
+    "xpub": "tpubD6NzVbkrYhZ4XDf3PqvTrNGmMq7APCRgjZmPJJB3jCS8FXEgnACbqRgTxwmUUe16MxVnKKwWbGDDJTMrEcaF7rhLjXnWWfpohumb3o5CAw6",
+    "account_xpub_vanilla": "tpubDCeeiyREtDAxDVGG8GNS33HNYQP2j3HmMJGzpm9MCgAWAMJTCx9JNeyQJRmDtzY7u5UPu72d5smTa7adFrYYYTeqSUdHiGdLJFFaBpXYsSq",
+    "account_xpub_colored": "tpubDCwFhEQFPQ83r21xktbeTtWvn7njWMvx3WYBza7EBxPdXxW9hinnEECMpzwCDTnmkLN5Khht2zhjbpwithawZvHBWpUqqkMHcx6Z4nLShgY",
+    "account_xpub_colored_fingerprint": "80e3ecab"
+}
