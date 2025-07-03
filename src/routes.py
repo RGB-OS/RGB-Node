@@ -164,7 +164,7 @@ def send_begin(req: SendAssetEndRequestModel, wallet_dep: tuple[Wallet, object,s
 @router.post("/blindreceive", response_model=ReceiveData)
 def generate_invoice(req: RgbInvoiceRequestModel, wallet_dep: tuple[Wallet, object,str,str]=Depends(get_wallet)):
     wallet, online,xpub_van, xpub_col = wallet_dep
-    receive = wallet.blind_receive(req.asset_id, req.amount, 3600, [PROXY_URL], 1)
+    receive = wallet.blind_receive(req.asset_id, req.amount, 900, [PROXY_URL], 1)
     return receive
 
 @router.post("/wallet/failtransfers")
