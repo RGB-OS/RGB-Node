@@ -72,3 +72,12 @@
     "account_xpub_colored": "tpubDCwFhEQFPQ83r21xktbeTtWvn7njWMvx3WYBza7EBxPdXxW9hinnEECMpzwCDTnmkLN5Khht2zhjbpwithawZvHBWpUqqkMHcx6Z4nLShgY",
     "account_xpub_colored_fingerprint": "80e3ecab"
 }
+
+// v14 wallet
+{
+    "mnemonic": "refuse track decide apple sunset learn safe inquiry panic circle region tiger",
+    "xpub": "tpubD6NzVbkrYhZ4XbmbkviL7MzQv5noaynxysjgduuQcDo6hyifoXNgvFbLXpvfmGA8m9fKJSgsHr1WLqrkBsPQ5gkBioKr4kEwDC2VRiahmCo",
+    "account_xpub_vanilla": "tpubDDdajg6KhNAPgmrqkrT9ssAqRZgNDX3S1GH9qUFeNyVbYGVsjKpfb6wz4nXfBaP448W6WkNQ9FnyYhajJKUG5fJ8YrCuEHAqbZaYGurP3Ht",
+    "account_xpub_colored": "tpubDCsZwXnn977jEgi39eCM2q2CtDFLvhPj6714FjtsGgLPX25FqxRXG23EXyc4BdkM5qAbpS4LTB96fTskqjhNsaTyB5w8mfGJWJomjZwgYph",
+    "master_fingerprint": "544f6a97"
+}

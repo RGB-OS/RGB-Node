@@ -1,6 +1,6 @@
 import os
 import json
-from rgb_lib import Wallet,restore_backup, WalletData, BitcoinNetwork, DatabaseType
+from rgb_lib import Wallet,restore_backup, WalletData, BitcoinNetwork, DatabaseType,AssetSchema
 print("NETWORK raw =", os.getenv("NETWORK"))
 print("INDEXER_URL raw =", os.getenv("INDEXER_URL"))
 print("PROXY_ENDPOINT raw =", os.getenv("PROXY_ENDPOINT"))
@@ -49,7 +49,7 @@ def load_wallet_config(client_id: str):
         return json.load(f)
 
 
-def create_wallet_instance(xpub_van: str,xpub_col: str):
+def create_wallet_instance(xpub_van: str,xpub_col: str,master_fingerprint:str):
     client_id=xpub_van
     if client_id in wallet_instances:
         instance = wallet_instances[client_id]
@@ -71,6 +71,8 @@ def create_wallet_instance(xpub_van: str,xpub_col: str):
         mnemonic=None,
         max_allocations_per_utxo=1,
         vanilla_keychain=vanilla_keychain,
+        master_fingerprint=master_fingerprint,
+        supported_schemas=[AssetSchema.NIA,AssetSchema.CFA,AssetSchema.UDA]
     )
     wallet = Wallet(wallet_data)
     print("prepere online",INDEXER_URL)
@@ -102,6 +104,8 @@ def restore_wallet_instance(xpub_van: str,xpub_col: str, password: str,backup_pa
         mnemonic=None,
         max_allocations_per_utxo=1,
         vanilla_keychain=vanilla_keychain,
+        master_fingerprint='544f6a97',
+        supported_schemas=[AssetSchema.NIA,AssetSchema.CFA,AssetSchema.UDA]
     )
     wallet = Wallet(wallet_data)
     online = wallet.go_online(False,INDEXER_URL)
@@ -127,6 +131,8 @@ def test_wallet_instance(xpub_van: str,xpub_col: str,mnemonic: str = None):
         mnemonic=mnemonic,
         max_allocations_per_utxo=1,
         vanilla_keychain=vanilla_keychain,
+         master_fingerprint='544f6a97',
+        supported_schemas=[AssetSchema.NIA,AssetSchema.CFA,AssetSchema.UDA]
     )
     wallet = Wallet(wallet_data)
     online = wallet.go_online(False, INDEXER_URL)
@@ -136,7 +142,7 @@ def test_wallet_instance(xpub_van: str,xpub_col: str,mnemonic: str = None):
     }
     return wallet, online
 
-def load_wallet_instance(xpub_van: str,xpub_col: str):
+def load_wallet_instance(xpub_van: str,xpub_col: str,master_fingerprint:str):
     client_id=xpub_van
     if client_id in wallet_instances:
         instance = wallet_instances[client_id]
@@ -156,6 +162,8 @@ def load_wallet_instance(xpub_van: str,xpub_col: str):
         mnemonic=None,
         max_allocations_per_utxo=1,
         vanilla_keychain=vanilla_keychain,
+         master_fingerprint=master_fingerprint,
+        supported_schemas=[AssetSchema.NIA,AssetSchema.CFA,AssetSchema.UDA]
     )
     wallet = Wallet(wallet_data)
     online = wallet.go_online(False, INDEXER_URL)
