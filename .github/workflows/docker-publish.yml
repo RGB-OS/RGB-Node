@@ -3,7 +3,7 @@ name: Build and Push Docker Image
 on:
   push:
     branches:
-      - prod
+      - main
 
 jobs:
   docker:
@@ -27,7 +27,7 @@ jobs:
         with:
           context: .
           push: true
-          tags: thunderstack/thunderlink-manager:prod
+          tags: thunderstack/thunderlink-manager:main
           
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
@@ -36,9 +36,9 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-#      - name: Force new deployment on ECS
-#        run: |
-#          aws ecs update-service \
-#            --cluster ${{ secrets.ECS_CLUSTER }} \
-#            --service ${{ secrets.ECS_SERVICE }} \
-#            --force-new-deployment
+      - name: Force new deployment on ECS
+        run: |
+          aws ecs update-service \
+            --cluster ${{ secrets.ECS_CLUSTER }} \
+            --service ${{ secrets.ECS_SERVICE }} \
+            --force-new-deployment
