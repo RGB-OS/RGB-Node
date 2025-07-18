@@ -52,8 +52,8 @@ def register_wallet(wallet_dep: tuple[Wallet, object,str,str]=Depends(create_wal
     btc_balance = wallet.get_btc_balance(online, False)
     address = wallet.get_address()
     return { "address": address, "btc_balance": btc_balance }
-
-@router.post("/wallet/listunspents",response_model=List[Unspent])
+# response_model=List[Unspent]
+@router.post("/wallet/listunspents")
 def list_unspents(wallet_dep: tuple[Wallet, object,str,str]=Depends(get_wallet)):
     wallet, online,xpub_van, xpub_col = wallet_dep
     unspents = wallet.list_unspents(online, False, False)
