@@ -60,7 +60,7 @@ class Recipient(BaseModel):
     """Recipient model for asset transfer."""
     recipient_id: str
     witness_data: Optional[WitnessData] = None
-    amount: int
+    assignment: Any
     transport_endpoints: List[str]
     
 class SendAssetBeginRequestModel(BaseModel):

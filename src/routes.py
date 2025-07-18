@@ -116,7 +116,7 @@ def send_begin(req: SendAssetBeginRequestModel, wallet_dep: tuple[Wallet, object
     print("request data",xpub_van, req.asset_id, req.amount)
     print("invoice data",invoice_data.assignment.amount)
 
-    resolved_amount = invoice_data.assignment.amount if invoice_data.assignment.amount not in (None, 0) else req.amount
+    resolved_amount = invoice_data.assignment if invoice_data.assignment.amount not in (None, 0) else Assignment.FUNGIBLE(req.amount)
     if resolved_amount is None:
         raise HTTPException(status_code=400, detail="Amount is required")
 
@@ -124,7 +124,7 @@ def send_begin(req: SendAssetBeginRequestModel, wallet_dep: tuple[Wallet, object
         invoice_data.asset_id or req.asset_id: [
             Recipient(
                 recipient_id=invoice_data.recipient_id,
-                amount=resolved_amount,
+                assignment=resolved_amount,
                 transport_endpoints=invoice_data.transport_endpoints
             )
         ]
