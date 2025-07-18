@@ -114,3 +114,31 @@
     },
     "media": null
 }
+{
+    "mnemonic": "input asset pistol aware deliver imitate sausage behave news category manual catch",
+    "xpub": "tpubD6NzVbkrYhZ4XSMh32ufPtwNcCEXR2UPtWPKH6cr2sW4GckunPiZt3Kt1Nn8ssYPSyfaEXMHKBTgRomEe2ZiCbeevAGBBkQMmRDca8DYxhb",
+    "account_xpub_vanilla": "tpubDC3SyMdeKCosZC2J2mk72m4Xp5mikH9VzTh6sVejVww3LS19HPrtLmcoyEQrbzxRcQtPQntDg5vkXuuah7QLhLKsvEvUU4B7QioM7Xc5D8K",
+    "account_xpub_colored": "tpubDCW9yjx496cAwMCKSEtgnsrYgJBzZgvzzcvKsvitJTugdzF4FM3YUpKwZZ6P2L9XDhNtbHLyH7PvRN7GumcubAqyQQ3dctjaATVJaqajxa3",
+    "master_fingerprint": "cf01173d"
+}
+
+{
+    "asset": {
+      "asset_id": "rgb:5ALF~YtO-LrLUGxh-jaDm7ME-aNvvOL~-mNT48qM-NQ3Y4gM",
+      "ticker": "WUSDT",
+      "name": "Test WUSDT Regtest",
+      "details": null,
+      "precision": 6,
+      "issued_supply": 1000000000000,
+      "timestamp": 1752847683,
+      "added_at": 1752847683,
+      "balance": {
+        "settled": 1000000000000,
+        "future": 1000000000000,
+        "spendable": 1000000000000,
+        "offchain_outbound": 0,
+        "offchain_inbound": 0
+      },
+      "media": null
+    }
+  }
