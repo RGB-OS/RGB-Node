@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 import enum
-from typing import List, Optional
+from typing import Any, List, Literal, Optional, Union
 
 from pydantic import BaseModel
 from pydantic import model_validator
@@ -363,7 +363,32 @@ class TransferTransportEndpoint(BaseModel):
     endpoint: str
     transport_type: TransportType
     used: bool
+    
+# class AssignmentFungible(BaseModel):
+#     type: Literal["FUNGIBLE"]
+#     amount: int
 
+# class AssignmentNonFungible(BaseModel):
+#     type: Literal["NON_FUNGIBLE"]
+
+# class AssignmentInflationRight(BaseModel):
+#     type: Literal["INFLATION_RIGHT"]
+#     amount: int
+
+# class AssignmentReplaceRight(BaseModel):
+#     type: Literal["REPLACE_RIGHT"]
+
+# class AssignmentAny(BaseModel):
+#     type: Literal["ANY"]
+
+# Assignment = Union[
+#     AssignmentFungible,
+#     AssignmentNonFungible,
+#     AssignmentInflationRight,
+#     AssignmentReplaceRight,
+#     AssignmentAny
+# ]
+    
 class Transfer(BaseModel):
     """Model representing a transfer."""
 
@@ -372,7 +397,8 @@ class Transfer(BaseModel):
     created_at: int
     updated_at: int
     status: TransferStatus
-    amount: int
+    requested_assignment: Optional[Any]
+    assignments:List[Any]
     kind: TransferKind
     txid: Optional[str]
     recipient_id: Optional[str]
@@ -380,3 +406,4 @@ class Transfer(BaseModel):
     change_utxo: Optional[Outpoint]
     expiration: Optional[int]
     transport_endpoints: List[TransferTransportEndpoint]
+    invoice_string:Optional[str]

@@ -185,7 +185,7 @@ def list_transaction(wallet_dep: tuple[Wallet, object,str,str]=Depends(get_walle
     list_transactions = wallet.list_transactions(online, False)
     return list_transactions
 
-@router.post("/wallet/listtransfers",response_model=List[Transfer])
+@router.post("/wallet/listtransfers")
 def list_transfers(req:ListTransfersRequestModel, wallet_dep: tuple[Wallet, object,str,str]=Depends(get_wallet)):
     wallet, online,xpub_van, xpub_col = wallet_dep
     
