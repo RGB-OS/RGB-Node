@@ -3,7 +3,7 @@ from fastapi import File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from src.dependencies import get_wallet,create_wallet
-from rgb_lib import BitcoinNetwork, Wallet,AssetSchema
+from rgb_lib import BitcoinNetwork, Wallet,AssetSchema, Assignment
 from src.rgb_model import AssetNia, Backup, Balance, BtcBalance, DecodeRgbInvoiceRequestModel, DecodeRgbInvoiceResponseModel, FailTransferRequestModel, GetAssetResponseModel, IssueAssetNiaRequestModel, ListTransfersRequestModel, ReceiveData, Recipient, RefreshRequestModel, RegisterModel, RgbInvoiceRequestModel, SendAssetBeginModel, SendAssetBeginRequestModel, SendResult, Transfer, Unspent
 from fastapi import APIRouter, Depends
 import os
@@ -165,7 +165,9 @@ def send_begin(req: SendAssetEndRequestModel, wallet_dep: tuple[Wallet, object,s
 @router.post("/blindreceive", response_model=ReceiveData)
 def generate_invoice(req: RgbInvoiceRequestModel, wallet_dep: tuple[Wallet, object,str,str]=Depends(get_wallet)):
     wallet, online,xpub_van, xpub_col = wallet_dep
-    receive = wallet.blind_receive(req.asset_id, req.amount, 900, [PROXY_URL], 1)
+    assignment = Assignment.FUNGIBLE(req.amount)
+    duration_seconds=900,
+    receive = wallet.blind_receive(req.asset_id, assignment, duration_seconds, [PROXY_URL], 1)
     return receive
 
 @router.post("/wallet/failtransfers")
