@@ -114,9 +114,9 @@ def send_begin(req: SendAssetBeginRequestModel, wallet_dep: tuple[Wallet, object
     wallet, online,xpub_van, xpub_col = wallet_dep
     invoice_data = rgb_lib.Invoice(req.invoice).invoice_data()
     print("request data",xpub_van, req.asset_id, req.amount)
-    print("invoice data", invoice_data)
+    print("invoice data",invoice_data.assignment.FUNGIBLE.amount)
 
-    resolved_amount = invoice_data.amount if invoice_data.amount is not None else req.amount
+    resolved_amount = invoice_data.assignment.FUNGIBLE.amount if invoice_data.assignment.FUNGIBLE.amount is not None else req.amount
     if resolved_amount is None:
         raise HTTPException(status_code=400, detail="Amount is required")
 
@@ -166,7 +166,8 @@ def send_begin(req: SendAssetEndRequestModel, wallet_dep: tuple[Wallet, object,s
 def generate_invoice(req: RgbInvoiceRequestModel, wallet_dep: tuple[Wallet, object,str,str]=Depends(get_wallet)):
     wallet, online,xpub_van, xpub_col = wallet_dep
     assignment = Assignment.FUNGIBLE(req.amount)
-    duration_seconds=900,
+    print("signed_psbt", assignment)
+    duration_seconds=900
     receive = wallet.blind_receive(req.asset_id, assignment, duration_seconds, [PROXY_URL], 1)
     return receive
 

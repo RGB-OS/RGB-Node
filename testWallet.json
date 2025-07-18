@@ -90,3 +90,28 @@
     "account_xpub_colored": "tpubDCd1k1Xcz857NV2Bt84wAQivQDJGPy5DEcaiZLGywEmeWFdgLDCqKvRo9S1We1f2Tx8aFHqj1rhFhc2G2rmLpa3QSCKX6MNiBj7ovFhBqnd",
     "account_xpub_colored_fingerprint": "226a08a6"
 }
+
+{
+    "mnemonic": "shove fork expect bean oxygen output pilot vintage title absorb carpet pink",
+    "xpub": "tpubD6NzVbkrYhZ4WPwdGm7cwzn7mwtJGPcP9tKZyh3rEC84yMJ7Az1KqBjvEmBC4c2aKYRMjR4xiuvBJvYpWetGWkUbRBtS5GqcUZuQXwGXcwe",
+    "account_xpub_vanilla": "tpubDCLMz63j8k7eNfKzXYNrghkSV4D3oN5hddypqEJH6xx5x2XT6ckfNpjnB6wgJBz5eni4z4o2bzy9iZN7JQd5MJvMAEP1yi8vDVMdcrf3TBh",
+    "account_xpub_colored": "tpubDCDck3R9MXzXRCFYLTiJ8bxcSE39F2HDiQJpcxtKEz2d6kT3H9VGJYD3v6WnEpzCi2tewMSCoFCVKdrQPH3kZXakwYUsefzf634BiZKQSbn",
+    "master_fingerprint": "7c68779a"
+}
+
+{
+    "asset_id": "rgb:3K6piVgM-B5hLxu4-w5BuxYT-LPkH43g-gbk2RMS-B0rq9SA",
+    "ticker": "TUSDD",
+    "name": "TUSDD",
+    "details": null,
+    "precision": 6,
+    "issued_supply": 10000000000,
+    "timestamp": 1752838304,
+    "added_at": 1752838304,
+    "balance": {
+        "settled": 10000000000,
+        "future": 10000000000,
+        "spendable": 10000000000
+    },
+    "media": null
+}
