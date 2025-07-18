@@ -27,7 +27,7 @@ class CreateUtxosBegin(BaseModel):
     mnemonic: str = None
     upTo: bool = False
     num: int = 5
-    size: int = 32500
+    size: int = 1000
     feeRate: int = 5
 
 
@@ -145,10 +145,11 @@ class SignPSBT(BaseModel):
     psbt: str
     xpub_van: str
     xpub_col: str
+    master_fingerprint: str
 
 @router.post("/wallet/sign")
 def sign_psbt(req:SignPSBT):
-    wallet,online = test_wallet_instance(req.xpub_van,req.xpub_col, req.mnemonic)
+    wallet,online = test_wallet_instance(req.xpub_van,req.xpub_col, req.mnemonic,req.master_fingerprint)
     print("signing psbt",req.psbt)
     signed_psbt = wallet.sign_psbt(req.psbt)
 

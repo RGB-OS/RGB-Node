@@ -81,3 +81,12 @@
     "account_xpub_colored": "tpubDCsZwXnn977jEgi39eCM2q2CtDFLvhPj6714FjtsGgLPX25FqxRXG23EXyc4BdkM5qAbpS4LTB96fTskqjhNsaTyB5w8mfGJWJomjZwgYph",
     "master_fingerprint": "544f6a97"
 }
+
+//tricorn update
+{
+    "mnemonic": "curious long embrace entry wrist trip old keen swear safe opinion nerve",
+    "xpub": "tpubD6NzVbkrYhZ4YEbqoQTV2yR9s2j4L7qv2qSRDTGi76mzFUnnv98aExjSrUeHm59wX3AfBu8pBvghLAcBPwK2HgZAU4i5HRFWQcPe2Pom49i",
+    "account_xpub_vanilla": "tpubDCQTw2f9FGtFGz4bFnaQtVX9g5PNGJBxQ1zuaFoirGJE8q1BFWRw42EpScxkLX9eGuoWZYMDDFVkr8af8VXUbc8KkxNDfbu1EqDiV8J9E2X",
+    "account_xpub_colored": "tpubDCd1k1Xcz857NV2Bt84wAQivQDJGPy5DEcaiZLGywEmeWFdgLDCqKvRo9S1We1f2Tx8aFHqj1rhFhc2G2rmLpa3QSCKX6MNiBj7ovFhBqnd",
+    "account_xpub_colored_fingerprint": "226a08a6"
+}

@@ -111,7 +111,7 @@ def restore_wallet_instance(xpub_van: str,xpub_col: str, password: str,backup_pa
     online = wallet.go_online(False,INDEXER_URL)
     return wallet, online
 
-def test_wallet_instance(xpub_van: str,xpub_col: str,mnemonic: str = None):
+def test_wallet_instance(xpub_van: str,xpub_col: str,mnemonic: str = None,master_fingerprint: str = None):
     client_id=xpub_van
     # if client_id in wallet_instances:
     #     instance = wallet_instances[client_id]
@@ -131,7 +131,7 @@ def test_wallet_instance(xpub_van: str,xpub_col: str,mnemonic: str = None):
         mnemonic=mnemonic,
         max_allocations_per_utxo=1,
         vanilla_keychain=vanilla_keychain,
-         master_fingerprint='544f6a97',
+        master_fingerprint=master_fingerprint,
         supported_schemas=[AssetSchema.NIA,AssetSchema.CFA,AssetSchema.UDA]
     )
     wallet = Wallet(wallet_data)
