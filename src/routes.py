@@ -109,14 +109,14 @@ def decode_rgb_invoice(req:DecodeRgbInvoiceRequestModel, wallet_dep: tuple[Walle
     print("invoice data", invoice_data)
     return invoice_data
 
+
 @router.post("/wallet/sendbegin")
 def send_begin(req: SendAssetBeginRequestModel, wallet_dep: tuple[Wallet, object,str,str]=Depends(get_wallet)):
     wallet, online,xpub_van, xpub_col = wallet_dep
     invoice_data = rgb_lib.Invoice(req.invoice).invoice_data()
     print("request data",xpub_van, req.asset_id, req.amount)
-    print("invoice data",invoice_data.assignment.amount)
-
-    resolved_amount = invoice_data.assignment if invoice_data.assignment.amount not in (None, 0) else Assignment.FUNGIBLE(req.amount)
+  
+    resolved_amount = Assignment.FUNGIBLE(req.amount)
     if resolved_amount is None:
         raise HTTPException(status_code=400, detail="Amount is required")
 
