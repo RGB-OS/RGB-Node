@@ -137,6 +137,7 @@ env.bak/
 venv.bak/
 .env.bitfinex
 .env.thunder
+.env.mainnet
 
 # Spyder project settings
 .spyderproject

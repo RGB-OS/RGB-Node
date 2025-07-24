@@ -88,7 +88,7 @@ def upload_backup(client_id: str):
     remove_backup_if_exists(client_id)
     backup_path = get_backup_path(client_id)
   
-def restore_wallet_instance(xpub_van: str,xpub_col: str, password: str,backup_path: str):
+def restore_wallet_instance(xpub_van: str,xpub_col: str,master_fingerprint:str, password: str,backup_path: str):
     client_id = xpub_van
     restore_path = get_restored_wallet_path(client_id)
     if not os.path.exists(restore_path):
@@ -104,7 +104,7 @@ def restore_wallet_instance(xpub_van: str,xpub_col: str, password: str,backup_pa
         mnemonic=None,
         max_allocations_per_utxo=1,
         vanilla_keychain=vanilla_keychain,
-        master_fingerprint='544f6a97',
+         master_fingerprint=master_fingerprint,
         supported_schemas=[AssetSchema.NIA,AssetSchema.CFA,AssetSchema.UDA]
     )
     wallet = Wallet(wallet_data)

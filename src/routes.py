@@ -241,6 +241,8 @@ def restore_wallet(
     file: UploadFile = File(...),
     password: str = Form(...),
     xpub_van: str = Form(...),
+    xpub_col: str = Form(...),
+    master_fingerprint: str = Form(...)
 ):
     remove_backup_if_exists(xpub_van)
     backup_path = get_backup_path(xpub_van)
@@ -248,7 +250,7 @@ def restore_wallet(
         shutil.copyfileobj(file.file, buffer)
     try:
         # Restore wallet from backup
-        restore_wallet_instance(xpub_van, password, backup_path)
+        restore_wallet_instance(xpub_van,xpub_col,master_fingerprint, password, backup_path)
         return {"message": "Wallet restored successfully"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to restore wallet: {str(e)}")
