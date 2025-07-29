@@ -134,7 +134,7 @@ def send_begin(req: SendAssetBeginRequestModel, wallet_dep: tuple[Wallet, object
         recipient_map=recipient_map,
         donation=True,
         fee_rate=5,
-        min_confirmations=1
+        min_confirmations=3
     )
     
     psbt = wallet.send_begin(online, send_model.recipient_map, send_model.donation, send_model.fee_rate, send_model.min_confirmations)
@@ -175,7 +175,7 @@ def generate_invoice(req: RgbInvoiceRequestModel, wallet_dep: tuple[Wallet, obje
     assignment = Assignment.FUNGIBLE(req.amount)
     print("signed_psbt", assignment)
     duration_seconds=900
-    receive = wallet.blind_receive(req.asset_id, assignment, duration_seconds, [PROXY_URL], 1)
+    receive = wallet.blind_receive(req.asset_id, assignment, duration_seconds, [PROXY_URL], 3)
     return receive
 
 @router.post("/wallet/failtransfers")
