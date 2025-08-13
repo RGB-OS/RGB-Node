@@ -105,7 +105,6 @@ def get_asset_balance(req: AssetBalanceRequest, wallet_dep: tuple[Wallet, object
 def decode_rgb_invoice(req:DecodeRgbInvoiceRequestModel, wallet_dep: tuple[Wallet, object,str,str]=Depends(get_wallet) ):
     wallet, online,xpub_van, xpub_col = wallet_dep
     invoice_data = rgb_lib.Invoice(req.invoice).invoice_data()
-    print("invoice data", invoice_data)
     return invoice_data
 
 
