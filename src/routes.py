@@ -80,7 +80,7 @@ def list_assets(wallet_dep: tuple[Wallet, object,str,str]=Depends(get_wallet)):
 @router.post("/wallet/btcbalance",response_model=BtcBalance)
 def get_btc_balance(wallet_dep: tuple[Wallet, object,str,str]=Depends(get_wallet)):
     wallet, online,xpub_van, xpub_col = wallet_dep
-    btc_balance = wallet.get_btc_balance(online, False)
+    btc_balance = wallet.get_btc_balance(online, True)
     return btc_balance
 
 @router.post("/wallet/address",response_model=str)
