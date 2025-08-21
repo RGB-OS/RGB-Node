@@ -137,6 +137,7 @@ env.bak/
 venv.bak/
 .env.bitfinex
 .env.thunder
+.env.testnet
 .env.mainnet
 
 # Spyder project settings
@@ -150,6 +151,7 @@ venv.bak/
 /site
 data/
 backup/
+scripts/
 # mypy
 .mypy_cache/
 .dmypy.json

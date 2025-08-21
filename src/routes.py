@@ -119,12 +119,19 @@ def send_begin(req: SendAssetBeginRequestModel, wallet_dep: tuple[Wallet, object
     resolved_amount = Assignment.FUNGIBLE(req.amount)
     if resolved_amount is None:
         raise HTTPException(status_code=400, detail="Amount is required")
+    
+    witness_data =(
+    rgb_lib.WitnessData(amount_sat=1000, blinding=None)
+        if req.witness
+        else None
+    )
 
     recipient_map = {
         invoice_data.asset_id or req.asset_id: [
             Recipient(
                 recipient_id=invoice_data.recipient_id,
                 assignment=resolved_amount,
+                witness_data=witness_data,
                 transport_endpoints=invoice_data.transport_endpoints
             )
         ]
@@ -155,14 +162,6 @@ def sign_psbt(req:SignPSBT):
 
     print("signed_psbt", signed_psbt)
     return signed_psbt
-# {
-#       "mnemonic": "input asset pistol aware deliver imitate sausage behave news category manual catch",
-#     "xpub": "tpubD6NzVbkrYhZ4XSMh32ufPtwNcCEXR2UPtWPKH6cr2sW4GckunPiZt3Kt1Nn8ssYPSyfaEXMHKBTgRomEe2ZiCbeevAGBBkQMmRDca8DYxhb",
-#     "xpub_van": "tpubDC3SyMdeKCosZC2J2mk72m4Xp5mikH9VzTh6sVejVww3LS19HPrtLmcoyEQrbzxRcQtPQntDg5vkXuuah7QLhLKsvEvUU4B7QioM7Xc5D8K",
-#     "xpub_col": "tpubDCW9yjx496cAwMCKSEtgnsrYgJBzZgvzzcvKsvitJTugdzF4FM3YUpKwZZ6P2L9XDhNtbHLyH7PvRN7GumcubAqyQQ3dctjaATVJaqajxa3",
-#     "master_fingerprint": "cf01173d",
-#     "psbt":"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"
-# }
 @router.post("/wallet/sendend", response_model=SendResult)
 def send_begin(req: SendAssetEndRequestModel, wallet_dep: tuple[Wallet, object,str,str]=Depends(get_wallet)):
     wallet, online,xpub_van, xpub_col = wallet_dep
@@ -176,6 +175,15 @@ def generate_invoice(req: RgbInvoiceRequestModel, wallet_dep: tuple[Wallet, obje
     print("signed_psbt", assignment)
     duration_seconds=900
     receive = wallet.blind_receive(req.asset_id, assignment, duration_seconds, [PROXY_URL], 3)
+    return receive
+
+@router.post("/wallet/witnessreceive", response_model=ReceiveData)
+def generate_invoice(req: RgbInvoiceRequestModel, wallet_dep: tuple[Wallet, object,str,str]=Depends(get_wallet)):
+    wallet, online,xpub_van, xpub_col = wallet_dep
+    assignment = Assignment.FUNGIBLE(req.amount)
+    print("signed_psbt", assignment)
+    duration_seconds=900
+    receive = wallet.witness_receive(req.asset_id, assignment, duration_seconds, [PROXY_URL], 3)
     return receive
 
 @router.post("/wallet/failtransfers")

@@ -59,7 +59,7 @@ class WitnessData(BaseModel):
 class Recipient(BaseModel):
     """Recipient model for asset transfer."""
     recipient_id: str
-    witness_data: Optional[WitnessData] = None
+    witness_data: Any = None
     assignment: Any
     transport_endpoints: List[str]
     
@@ -68,6 +68,7 @@ class SendAssetBeginRequestModel(BaseModel):
     asset_id: str| None = None
     recipient_id: str= None
     amount: int= None
+    witness: bool = False
 
 class SendAssetBeginModel(BaseModel):
     recipient_map: dict[str, List[Recipient]]

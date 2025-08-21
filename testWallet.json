@@ -72,7 +72,6 @@
     "account_xpub_colored": "tpubDCwFhEQFPQ83r21xktbeTtWvn7njWMvx3WYBza7EBxPdXxW9hinnEECMpzwCDTnmkLN5Khht2zhjbpwithawZvHBWpUqqkMHcx6Z4nLShgY",
     "account_xpub_colored_fingerprint": "80e3ecab"
 }
-
 // v14 wallet
 {
     "mnemonic": "refuse track decide apple sunset learn safe inquiry panic circle region tiger",
@@ -81,7 +80,6 @@
     "account_xpub_colored": "tpubDCsZwXnn977jEgi39eCM2q2CtDFLvhPj6714FjtsGgLPX25FqxRXG23EXyc4BdkM5qAbpS4LTB96fTskqjhNsaTyB5w8mfGJWJomjZwgYph",
     "master_fingerprint": "544f6a97"
 }
-
 //tricorn update
 {
     "mnemonic": "curious long embrace entry wrist trip old keen swear safe opinion nerve",
@@ -124,37 +122,35 @@
 
 {
     "asset": {
-      "asset_id": "rgb:5ALF~YtO-LrLUGxh-jaDm7ME-aNvvOL~-mNT48qM-NQ3Y4gM",
-      "ticker": "WUSDT",
-      "name": "Test WUSDT Regtest",
-      "details": null,
-      "precision": 6,
-      "issued_supply": 1000000000000,
-      "timestamp": 1752847683,
-      "added_at": 1752847683,
-      "balance": {
-        "settled": 1000000000000,
-        "future": 1000000000000,
-        "spendable": 1000000000000,
-        "offchain_outbound": 0,
-        "offchain_inbound": 0
-      },
-      "media": null
+        "asset_id": "rgb:5ALF~YtO-LrLUGxh-jaDm7ME-aNvvOL~-mNT48qM-NQ3Y4gM",
+        "ticker": "WUSDT",
+        "name": "Test WUSDT Regtest",
+        "details": null,
+        "precision": 6,
+        "issued_supply": 1000000000000,
+        "timestamp": 1752847683,
+        "added_at": 1752847683,
+        "balance": {
+            "settled": 1000000000000,
+            "future": 1000000000000,
+            "spendable": 1000000000000,
+            "offchain_outbound": 0,
+            "offchain_inbound": 0
+        },
+        "media": null
     }
-  }
+}
 
 
   {
     "mnemonic": "input asset pistol aware deliver imitate sausage behave news category manual catch",
-  "xpub": "tpubD6NzVbkrYhZ4XSMh32ufPtwNcCEXR2UPtWPKH6cr2sW4GckunPiZt3Kt1Nn8ssYPSyfaEXMHKBTgRomEe2ZiCbeevAGBBkQMmRDca8DYxhb",
-  "xpub_van": "tpubDC3SyMdeKCosZC2J2mk72m4Xp5mikH9VzTh6sVejVww3LS19HPrtLmcoyEQrbzxRcQtPQntDg5vkXuuah7QLhLKsvEvUU4B7QioM7Xc5D8K",
-  "xpub_col": "tpubDCW9yjx496cAwMCKSEtgnsrYgJBzZgvzzcvKsvitJTugdzF4FM3YUpKwZZ6P2L9XDhNtbHLyH7PvRN7GumcubAqyQQ3dctjaATVJaqajxa3",
-  "master_fingerprint": "cf01173d",
-  "psbt":"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"
+    "xpub": "tpubD6NzVbkrYhZ4XSMh32ufPtwNcCEXR2UPtWPKH6cr2sW4GckunPiZt3Kt1Nn8ssYPSyfaEXMHKBTgRomEe2ZiCbeevAGBBkQMmRDca8DYxhb",
+    "xpub_van": "tpubDC3SyMdeKCosZC2J2mk72m4Xp5mikH9VzTh6sVejVww3LS19HPrtLmcoyEQrbzxRcQtPQntDg5vkXuuah7QLhLKsvEvUU4B7QioM7Xc5D8K",
+    "xpub_col": "tpubDCW9yjx496cAwMCKSEtgnsrYgJBzZgvzzcvKsvitJTugdzF4FM3YUpKwZZ6P2L9XDhNtbHLyH7PvRN7GumcubAqyQQ3dctjaATVJaqajxa3",
+    "master_fingerprint": "cf01173d",
+    "psbt": "cHNidP8BANsCAAAAA4whGa0K/emkZWIjKs2agfqDORvKk9UiAzMWJ0BQhdzkAQAAAAD9////U0h0LyG+e+2js3pNO8NbS+ZTCx8T/43M5A1zD76YrnkBAAAAAP3////pjIjFTIdH7Aq9f6KFuv0XfT0vCFvwEf7Jr9UASI2yzAgAAAAA/f///wIAAAAAAAAAACJqINWRrkV0qHoO+O9adl3vXnW05n7vpw0crYyaLoBg65OdSgIAAAAAAAAiUSAwOa05V2DnelNeMRGVz+JmX2jAd5hjfW5BcXsZ7dlUoKmuBQAm/ANSR0IB6t5UzftcPdSvRbv944GjXK4eGq/ECer/2wk80GtZ8BrlAADkAsX9i04ustQbGGNoObswRo2+84v+Y1Pjyow1DdjiA///////////ECcAAAMAIYxAtiVoxShH/xLxhHqd//Pjg5zIhBfLGwSM+2Qse7GgDwAALkX/n938qP82MrS/udOiDLdGmUIXMsnWTr7O2udoT26gDwAAx7HO9YwHCUGusqP9uuGC+F4AHvYVqHbmm7TUyTyzk9CgDwEAAQCgDwECAAAAAQAAAJoEQ1IoucDFCJJzAwAAAAAAATLN8D+pwiS6qQd8wUsfENJ/FQJ98ofalrNI2whMQVC0CAAbtwAAAAAAAAb8A1JHQgIBACb8A1JHQgTkAsX9i04ustQbGGNoObswRo2+84v+Y1Pjyow1DdjiA8whjEC2JWjFKEf/EvGEep3/8+ODnMiEF8sbBIz7ZCx7saAPAADq3lTN+1w91K9Fu/3jgaNcrh4ar8QJ6v/bCTzQa1nwGi5F/5/d/Kj/NjK0v7nTogy3RplCFzLJ1k6+ztrnaE9uoA8AAOreVM37XD3Ur0W7/eOBo1yuHhqvxAnq/9sJPNBrWfAax7HO9YwHCUGusqP9uuGC+F4AHvYVqHbmm7TUyTyzk9CgDwEA6t5UzftcPdSvRbv944GjXK4eGq/ECer/2wk80GtZ8BoAAQErhAEAAAAAAAAiUSAr6MCwP3SZmy+e99TJNmLeKf19mPQug2rq/C5Jb3XVzCEWEkYVDbUwQVOEg9GWR3yWK1o36krFpf3nv1AtZPIQux4ZAM8BFz1WAACAH58MgAAAAIAAAAAAWQAAAAEXIBJGFQ21MEFThIPRlkd8litaN+pKxaX9579QLWTyELseAAEBK4QBAAAAAAAAIlEgRKx7dOmxJM+IJGBCUtyhRO/KeYtuxatys035hStJHSMhFviMTljcG8zK/fBm+lNAu+WCejMZqVep7c8DTwY39h48GQDPARc9VgAAgB+fDIAAAACAAAAAAFAAAAABFyD4jE5Y3BvMyv3wZvpTQLvlgnozGalXqe3PA08GN/YePAABASvoAwAAAAAAACJRIMlAAS+maCVBaRcEN3PycTcvLi2xuaNlDrA8e778vpmkIRbXCg0Tj+TRUmrGGFncobeInvcW/rE379ppZnDSd7i2nhkAzwEXPVYAAIAfnwyAAAAAgAAAAAA0AAAAARcg1woNE4/k0VJqxhhZ3KG3iJ73Fv6xN+/aaWZw0ne4tp4AJvwDTVBDAOQCxf2LTi6y1BsYY2g5uzBGjb7zi/5jU+PKjDUN2OIDIM855KwphQrFp9FW67MR/C/mk/cf5ehY/1VABRHmFV40BvwDTVBDAQjSKNGRe0+qXQb8A01QQxAg1ZGuRXSoeg7471p2Xe9edbTmfu+nDRytjJougGDrk50G/ANNUEMR/T8BAwAACAAAAAADtTgoJYWInMgGKAAIQEiRsxAifKAo1AHElDMXqnpAVs4AA6bXzPEVmHdHthIMneqbHix42DTb5gnzjKh82AqB62GlAAOyJtr0U/BdUl7Ohv98Amp6ih5dL3zmEpNFV+rMCu8h+gADViJdvvx3U223X87qAB2AOdvnOGe2psxTUmvD91ylZpIB5ALF/YtOLrLUGxhjaDm7MEaNvvOL/mNT48qMNQ3Y4gPPOeSsKYUKxafRVuuzEfwv5pP3H+XoWP9VQAUR5hVeNAADgTWr3pMrH2XPlwkGonv5nHfloqCACvyYAYMEIBH3X/IAAyoTYFgeZlD0DQ/iPjXPylmftZt5bcxm+rn5C4DSX5dLAAORFwv7EM+CSrNo3zWtabE2ze0Jz0f098qPokXZvVckCwHSKNGRe0+qXQj8BU9QUkVUASDVka5FdKh6DvjvWnZd7151tOZ+76cNHK2Mmi6AYOuTnQABBSAZ/L8V5c+wgfYxQtcmIdpqsx3SIvJIPg1DIvo7/wYZ9yEHGfy/FeXPsIH2MULXJiHaarMd0iLySD4NQyL6O/8GGfcZAM8BFz1WAACAH58MgAAAAIAAAAAAlQAAAAA="
 }
-
 // new test wallle t 21.07
-
 {
     "mnemonic": "share uncover tone abandon inch since end peanut hospital ice inch silk",
     "xpub": "tpubD6NzVbkrYhZ4Xm6UxFDGoaV4AiwQ2AtfS2Vx14dK6aB1ut9xft9xjrWsfkgJ8L11PFoAp3CfNPVddwxUVWmGeBrpWRjCBzDRpXyPtgBF2Xu",
@@ -162,8 +158,7 @@
     "account_xpub_colored": "tpubDDk1Fsp2nrmucn1GFjcauDDyEwMWJXmimSH6RXqMVtXN8Ac2ogbsMKD3Me9tTMuFKKxH2ojd3njdVgbiUnor8BFwhj5LREnCSuPKUT255Ce",
     "master_fingerprint": "d2fd2d67"
 }
-"cHNidP8BAP0KAQIAAAAB0PRLz4lkDg2mOe41A4dqMXVTO3mTlsdSvMAvJtYdtOgAAAAAAP3///8F6AMAAAAAAAAiUSA2LjQ7vUmXX+CyimnK5nhaNzojDWg0CFKkHeuZZpmeEegDAAAAAAAAIlEgXm4tBoBtXHWTf7/CnFwNcrquqt3rg8Ohven3sVaSvrzoAwAAAAAAACJRIDxrv/aQ5AICtcNW6hMsAfpXpZfkMc9C/LCvH2ajIjf4nx0AAAAAAAAiUSAOG24gkqrE/hQUuKTdQQVS0r5/faNYhzcZHfP3AUjMuugDAAAAAAAAIlEgt2mePvBWtuMCyZ/jXMsK7Cdrqosn/bePJlG3pcFzMXws1Q0AAAEBK8gyAAAAAAAAIlEgElPrPOrvIu8HiaDlijyyeqd1tsPouaOQeBtJz1shQsgBCEIBQPOsKE3rVKUqWG+cGhDl7JFYnyE3jLJ41NrSeUjpsY16SJSGBNCGJc/Rc5KPcPCIU3GB7wIQaNvMiyQtas69s/EAAQUgLk1v5/wqLchUi+W+hZYg68t2PqObiK+zaX5NcnFbwGUAAQUgc7KCb1ILubBQD88Kgea5XczLaZ4qfDyYZ7mzdOkNqtYAAQUgR1+acNghJzcFF2JuRIUptUTD03mMS8d+LaHvw/hzvwkAAQUgoxDqiYDmmD+pIGZGumuH1hI1/dGotdA7SQWyVcl8KPEAAQUghiBry/Th9I6Eg2LkVvsHkc9PjZaM+zghkWmCjE302YgA"
-{
+"cHNidP8BAP0KAQIAAAAB0PRLz4lkDg2mOe41A4dqMXVTO3mTlsdSvMAvJtYdtOgAAAAAAP3///8F6AMAAAAAAAAiUSA2LjQ7vUmXX+CyimnK5nhaNzojDWg0CFKkHeuZZpmeEegDAAAAAAAAIlEgXm4tBoBtXHWTf7/CnFwNcrquqt3rg8Ohven3sVaSvrzoAwAAAAAAACJRIDxrv/aQ5AICtcNW6hMsAfpXpZfkMc9C/LCvH2ajIjf4nx0AAAAAAAAiUSAOG24gkqrE/hQUuKTdQQVS0r5/faNYhzcZHfP3AUjMuugDAAAAAAAAIlEgt2mePvBWtuMCyZ/jXMsK7Cdrqosn/bePJlG3pcFzMXws1Q0AAAEBK8gyAAAAAAAAIlEgElPrPOrvIu8HiaDlijyyeqd1tsPouaOQeBtJz1shQsgBCEIBQPOsKE3rVKUqWG+cGhDl7JFYnyE3jLJ41NrSeUjpsY16SJSGBNCGJc/Rc5KPcPCIU3GB7wIQaNvMiyQtas69s/EAAQUgLk1v5/wqLchUi+W+hZYg68t2PqObiK+zaX5NcnFbwGUAAQUgc7KCb1ILubBQD88Kgea5XczLaZ4qfDyYZ7mzdOkNqtYAAQUgR1+acNghJzcFF2JuRIUptUTD03mMS8d+LaHvw/hzvwkAAQUgoxDqiYDmmD+pIGZGumuH1hI1/dGotdA7SQWyVcl8KPEAAQUghiBry/Th9I6Eg2LkVvsHkc9PjZaM+zghkWmCjE302YgA"{
     "idx": 13,
     "batch_transfer_idx": 13,
     "created_at": 1753268802,
@@ -205,3 +200,35 @@
     "rgb_allocations": [],
     "pending_blinded": 1
 },
+
+TESTNET
+BRIDGE KEYS
+
+{
+    "mnemonic": "enlist december room worth celery license park staff suspect cattle acoustic shove",
+    "xpub": "tpubD6NzVbkrYhZ4Y6p8DBc73nQbBy24E2fxTbcSGYJDp2JTn1jMFsqrbRZsKupbc4PFuSzAhg4F7SdzrMwF6cbgdsovz4eDtnxts1Eb1gH34xZ",
+    "account_xpub_vanilla": "tpubDDC7jCPzQoiVTW9jnieX7x9ggeQ5jxiBG6FbsNtQPh5TpEPiXmQAQCSegCpEzUnD1SK368j6rC15sxkMc6aQBvLQZe1WeUWy6RAoosVQT2r",
+    "account_xpub_colored": "tpubDCHy7XzcVPwfu223vrposQWAjrjstrM9fChhHdhZERGfujSaNCRetbFsFrwCdFoA2awdu1tz7qsuFwCxCtQFZMLpm2bux2QnJb1JPFTiQ8Y",
+    "master_fingerprint": "9c4adbb4"
+}
+
+
+// test wallet 1 with btc balance
+{
+    "mnemonic": "reduce model dog afford motor finish brick hazard dawn shrimp enemy mule",
+    "xpub": "tpubD6NzVbkrYhZ4Wqf8Sg1EhtQHCQp4xGR9yrzR81B4mBoenCUDoRS2cBppf3HdsC7smNMzwuWKjZFgyEwFGo3cvMAsaotb76tpYM1UVuQ3K3V",
+    "account_xpub_vanilla": "tpubDCPbfBe44xQ4RbYnkPSx4ubZ8qH7KAtEeUJLShpudNCxt5RbMVxNZzHKpgPu8ZzPzSmJHz2fU6WoujxtaALqJnKyDBVotMFv1t1KHjihBtp",
+    "account_xpub_colored": "tpubDDRiUtaTnZBXth2wSbvUzYd4rrY3o5JSpAynqoscQNJaZPCjcCxWh6vAuMRaynAozbeeU1EeGVZ2Qind3ptaa4ztbDueHfAQnhyNRvrm8dY",
+    "master_fingerprint": "bc18bfae"
+}
+
+// test wallet 2 without btc balance
+
+{
+    "mnemonic": "ship online drip art stage rotate kit swing similar pipe walk disagree",
+    "xpub": "tpubD6NzVbkrYhZ4Ye3pkDZgM5Xw1Jk5wD3EnW9CmerJ9GCjAKqMzwECvzWGt5k9E6hK3KHms8f4SuZGgJ6EkX9BxnrrH21GssobMFEyAYFAaHN",
+    "account_xpub_vanilla": "tpubDDGcYC3RCS8c19DWFS5Yeua3iqRXmH91CCTpTwcM2AvEJqWTLdogzKZJ5HK15RztehoS17gUKG84ZHS8BLnpD7sdX9kzTcBiC5JqmWLEx7M",
+    "account_xpub_colored": "tpubDCX9r2kMhnAoNzYDBjhm5bcEST7P9fwB5b4ucD3QDwA2X4bm9LttCLfbumYH9hJxQ4NcRb6i2FRfdXMKMPDJTTVHdgjui4VzdMfryXvTxTu",
+    "master_fingerprint": "e81d1702"
+}
+"asset_id": "rgb:bGjUSg00-IJjqQGw-G0AGTts-7ghWUGg-mTHRNan-W428K8Q",
