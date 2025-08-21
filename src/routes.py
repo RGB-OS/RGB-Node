@@ -74,14 +74,13 @@ def create_utxos_end(req: CreateUtxosEnd, wallet_dep: tuple[Wallet, object,str,s
 @router.post("/wallet/listassets",response_model=GetAssetResponseModel)
 def list_assets(wallet_dep: tuple[Wallet, object,str,str]=Depends(get_wallet)):
     wallet, online,xpub_van, xpub_col = wallet_dep
-    wallet.sync(online)
     assets = wallet.list_assets([AssetSchema.NIA])
     return assets
 
 @router.post("/wallet/btcbalance",response_model=BtcBalance)
 def get_btc_balance(wallet_dep: tuple[Wallet, object,str,str]=Depends(get_wallet)):
     wallet, online,xpub_van, xpub_col = wallet_dep
-    btc_balance = wallet.get_btc_balance(online, False)
+    btc_balance = wallet.get_btc_balance(online, True)
     return btc_balance
 
 @router.post("/wallet/address",response_model=str)
@@ -106,7 +105,6 @@ def get_asset_balance(req: AssetBalanceRequest, wallet_dep: tuple[Wallet, object
 def decode_rgb_invoice(req:DecodeRgbInvoiceRequestModel, wallet_dep: tuple[Wallet, object,str,str]=Depends(get_wallet) ):
     wallet, online,xpub_van, xpub_col = wallet_dep
     invoice_data = rgb_lib.Invoice(req.invoice).invoice_data()
-    print("invoice data", invoice_data)
     return invoice_data
 
 
