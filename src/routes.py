@@ -100,7 +100,7 @@ def get_asset_balance(req: AssetBalanceRequest, wallet_dep: tuple[Wallet, object
     wallet, _,xpub_van, xpub_col = wallet_dep
     balance = wallet.get_asset_balance(req.assetId)
     return balance
-# ,response_model=DecodeRgbInvoiceResponseModel
+
 @router.post("/wallet/decodergbinvoice")
 def decode_rgb_invoice(req:DecodeRgbInvoiceRequestModel, wallet_dep: tuple[Wallet, object,str,str]=Depends(get_wallet) ):
     wallet, online,xpub_van, xpub_col = wallet_dep
@@ -112,17 +112,25 @@ def decode_rgb_invoice(req:DecodeRgbInvoiceRequestModel, wallet_dep: tuple[Walle
 def send_begin(req: SendAssetBeginRequestModel, wallet_dep: tuple[Wallet, object,str,str]=Depends(get_wallet)):
     wallet, online,xpub_van, xpub_col = wallet_dep
     invoice_data = rgb_lib.Invoice(req.invoice).invoice_data()
-    print("request data",xpub_van, req.asset_id, req.amount)
- 
     resolved_amount = Assignment.FUNGIBLE(req.amount)
     if resolved_amount is None:
         raise HTTPException(status_code=400, detail="Amount is required")
     
-    witness_data =(
-    rgb_lib.WitnessData(amount_sat=1000, blinding=None)
-        if req.witness
-        else None
-    )
+    # Check if recipient_id contains "wvout:" to determine if it's a witness send
+    is_witness_send = "wvout:" in (invoice_data.recipient_id)
+    # Set witness_data based on whether it's a witness send
+    if is_witness_send:
+        if req.witness_data is None:
+            raise HTTPException(status_code=400, detail="witness_data is required for witness sends")
+        # Validate witness_data for witness sends
+        if not isinstance(req.witness_data.amount_sat, int):
+            raise HTTPException(status_code=400, detail="witness_data.amount_sat must be a number")
+        if req.witness_data.amount_sat <= 0:
+            raise HTTPException(status_code=400, detail="witness_data.amount_sat must be a positive number")
+        witness_data = rgb_lib.WitnessData(amount_sat=req.witness_data.amount_sat, blinding=req.witness_data.blinding)
+    else:
+        # For non-witness sends, witness_data is not required and should be None
+        witness_data = None
 
     recipient_map = {
         invoice_data.asset_id or req.asset_id: [
@@ -134,13 +142,14 @@ def send_begin(req: SendAssetBeginRequestModel, wallet_dep: tuple[Wallet, object
             )
         ]
     }
-    print("invoice data", recipient_map)
+   
     send_model = SendAssetBeginModel(
         recipient_map=recipient_map,
         donation=True,
-        fee_rate=5,
-        min_confirmations=3
+        fee_rate=req.fee_rate or 5,
+        min_confirmations=req.min_confirmations or 3
     )
+    print("invoice data", recipient_map, send_model)
     
     psbt = wallet.send_begin(online, send_model.recipient_map, send_model.donation, send_model.fee_rate, send_model.min_confirmations)
     return psbt
@@ -155,7 +164,6 @@ class SignPSBT(BaseModel):
 @router.post("/wallet/sign")
 def sign_psbt(req:SignPSBT):
     wallet,online = test_wallet_instance(req.xpub_van,req.xpub_col, req.mnemonic,req.master_fingerprint)
-    print("signing psbt",req.psbt)
     signed_psbt = wallet.sign_psbt(req.psbt)
 
     print("signed_psbt", signed_psbt)
@@ -170,7 +178,6 @@ def send_begin(req: SendAssetEndRequestModel, wallet_dep: tuple[Wallet, object,s
 def generate_invoice(req: RgbInvoiceRequestModel, wallet_dep: tuple[Wallet, object,str,str]=Depends(get_wallet)):
     wallet, online,xpub_van, xpub_col = wallet_dep
     assignment = Assignment.FUNGIBLE(req.amount)
-    print("signed_psbt", assignment)
     duration_seconds=900
     receive = wallet.blind_receive(req.asset_id, assignment, duration_seconds, [PROXY_URL], 3)
     return receive
@@ -179,7 +186,6 @@ def generate_invoice(req: RgbInvoiceRequestModel, wallet_dep: tuple[Wallet, obje
 def generate_invoice(req: RgbInvoiceRequestModel, wallet_dep: tuple[Wallet, object,str,str]=Depends(get_wallet)):
     wallet, online,xpub_van, xpub_col = wallet_dep
     assignment = Assignment.FUNGIBLE(req.amount)
-    print("signed_psbt", assignment)
     duration_seconds=900
     receive = wallet.witness_receive(req.asset_id, assignment, duration_seconds, [PROXY_URL], 3)
     return receive
@@ -187,9 +193,7 @@ def generate_invoice(req: RgbInvoiceRequestModel, wallet_dep: tuple[Wallet, obje
 @router.post("/wallet/failtransfers")
 def failtransfers(req: FailTransferRequestModel, wallet_dep: tuple[Wallet, object,str,str]=Depends(get_wallet)):
     wallet, online,xpub_van, xpub_col = wallet_dep
-    print("Failing transfers",req.batch_transfer_idx)
     failed = wallet.fail_transfers(online, req.batch_transfer_idx, req.no_asset_only, req.skip_sync)
-    print("Failing res",failed)
     return {'failed': failed}
 
 @router.post("/wallet/listtransactions")

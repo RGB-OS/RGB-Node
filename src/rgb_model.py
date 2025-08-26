@@ -54,7 +54,7 @@ class RegisterModel(BaseModel):
 
 class WitnessData(BaseModel):
     amount_sat: int
-    blinding: Optional[int]
+    blinding: Optional[int] = None
 
 class Recipient(BaseModel):
     """Recipient model for asset transfer."""
@@ -68,7 +68,9 @@ class SendAssetBeginRequestModel(BaseModel):
     asset_id: str| None = None
     recipient_id: str= None
     amount: int= None
-    witness: bool = False
+    witness_data: Optional[WitnessData] = None
+    fee_rate: Optional[int] = None
+    min_confirmations: Optional[int] = None
 
 class SendAssetBeginModel(BaseModel):
     recipient_map: dict[str, List[Recipient]]
