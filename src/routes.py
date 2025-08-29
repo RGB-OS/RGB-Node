@@ -174,6 +174,15 @@ def send_begin(req: SendAssetEndRequestModel, wallet_dep: tuple[Wallet, object,s
     result = wallet.send_end(online, req.signed_psbt, False)
     return result
 
+@router.post("/wallet/blindreceive", response_model=ReceiveData)
+def generate_invoice(req: RgbInvoiceRequestModel, wallet_dep: tuple[Wallet, object,str,str]=Depends(get_wallet)):
+    wallet, online,xpub_van, xpub_col = wallet_dep
+    assignment = Assignment.FUNGIBLE(req.amount)
+    duration_seconds=900
+    receive = wallet.blind_receive(req.asset_id, assignment, duration_seconds, [PROXY_URL], 3)
+    return receive
+
+# old methot should be removed after prod update
 @router.post("/blindreceive", response_model=ReceiveData)
 def generate_invoice(req: RgbInvoiceRequestModel, wallet_dep: tuple[Wallet, object,str,str]=Depends(get_wallet)):
     wallet, online,xpub_van, xpub_col = wallet_dep
