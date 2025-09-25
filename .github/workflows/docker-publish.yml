@@ -1,17 +1,22 @@
-name: Build and Push Docker Image
+name: Build & Deploy
 
 on:
   push:
-    branches:
-      - prod
+    branches: [prod, main]
+
+concurrency:
+  group: deploy-${{ github.ref_name }}
+  cancel-in-progress: false
 
 jobs:
   docker:
     runs-on: ubuntu-latest
+    env:
+      IMAGE_NAME: thunderstack/thunderlink-manager
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -22,13 +27,32 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Determine target env (prod vs test)
+        run: |
+          echo "SHORT_SHA=${GITHUB_SHA::7}" >> $GITHUB_ENV
+          if [[ "${GITHUB_REF_NAME}" == "prod" ]]; then
+            echo "TAG_PREFIX=prod" >> $GITHUB_ENV
+            echo "ECS_CLUSTER=${{ secrets.ECS_CLUSTER_PROD }}" >> $GITHUB_ENV
+            echo "ECS_SERVICE=${{ secrets.ECS_SERVICE_PROD }}" >> $GITHUB_ENV
+          elif [[ "${GITHUB_REF_NAME}" == "main" ]]; then
+            echo "TAG_PREFIX=test" >> $GITHUB_ENV
+            echo "ECS_CLUSTER=${{ secrets.ECS_CLUSTER_TEST }}" >> $GITHUB_ENV
+            echo "ECS_SERVICE=${{ secrets.ECS_SERVICE_TEST }}" >> $GITHUB_ENV
+          else
+            echo "Unsupported branch ${GITHUB_REF_NAME}"; exit 1
+          fi
+
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
           push: true
-          tags: thunderstack/thunderlink-manager:prod
-          
+          tags: |
+            ${{ env.IMAGE_NAME }}:${{ env.TAG_PREFIX }}
+            ${{ env.IMAGE_NAME }}:${{ env.TAG_PREFIX }}-${{ env.SHORT_SHA }}
+          cache-from: type=gha,scope=${{ env.TAG_PREFIX }}
+          cache-to: type=gha,mode=max,scope=${{ env.TAG_PREFIX }}
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
@@ -39,6 +63,6 @@ jobs:
       - name: Force new deployment on ECS
         run: |
           aws ecs update-service \
-            --cluster ${{ secrets.ECS_CLUSTER }} \
-            --service ${{ secrets.ECS_SERVICE }} \
+            --cluster "$ECS_CLUSTER" \
+            --service "$ECS_SERVICE" \
             --force-new-deployment
