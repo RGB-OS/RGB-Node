@@ -132,7 +132,7 @@ def send_begin(req: SendAssetBeginRequestModel, wallet_dep: tuple[Wallet, object
     print("invoice data", recipient_map)
     send_model = SendAssetBeginModel(
         recipient_map=recipient_map,
-        donation=True,
+        donation=False,
         fee_rate=5,
         min_confirmations=3
     )
