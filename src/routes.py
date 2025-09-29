@@ -145,7 +145,7 @@ def send_begin(req: SendAssetBeginRequestModel, wallet_dep: tuple[Wallet, object
    
     send_model = SendAssetBeginModel(
         recipient_map=recipient_map,
-        donation=True,
+        donation=False,
         fee_rate=req.fee_rate or 5,
         min_confirmations=req.min_confirmations or 3
     )
@@ -178,7 +178,7 @@ def send_begin(req: SendAssetEndRequestModel, wallet_dep: tuple[Wallet, object,s
 def generate_invoice(req: RgbInvoiceRequestModel, wallet_dep: tuple[Wallet, object,str,str]=Depends(get_wallet)):
     wallet, online,xpub_van, xpub_col = wallet_dep
     assignment = Assignment.FUNGIBLE(req.amount)
-    duration_seconds=900
+    duration_seconds=1500
     receive = wallet.blind_receive(req.asset_id, assignment, duration_seconds, [PROXY_URL], 3)
     return receive
 
@@ -187,7 +187,7 @@ def generate_invoice(req: RgbInvoiceRequestModel, wallet_dep: tuple[Wallet, obje
 def generate_invoice(req: RgbInvoiceRequestModel, wallet_dep: tuple[Wallet, object,str,str]=Depends(get_wallet)):
     wallet, online,xpub_van, xpub_col = wallet_dep
     assignment = Assignment.FUNGIBLE(req.amount)
-    duration_seconds=900
+    duration_seconds=1500
     receive = wallet.blind_receive(req.asset_id, assignment, duration_seconds, [PROXY_URL], 3)
     return receive
 
@@ -195,7 +195,7 @@ def generate_invoice(req: RgbInvoiceRequestModel, wallet_dep: tuple[Wallet, obje
 def generate_invoice(req: RgbInvoiceRequestModel, wallet_dep: tuple[Wallet, object,str,str]=Depends(get_wallet)):
     wallet, online,xpub_van, xpub_col = wallet_dep
     assignment = Assignment.FUNGIBLE(req.amount)
-    duration_seconds=900
+    duration_seconds=1500
     receive = wallet.witness_receive(req.asset_id, assignment, duration_seconds, [PROXY_URL], 3)
     return receive
 
