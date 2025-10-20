@@ -9,7 +9,7 @@ RGB Node is a drop‑in HTTP service for integrating RGB asset transfers on Bitc
 
 References:
 - Overview: [ThunderLink Overwiew](https://docs.thunderstack.org/bitcoin-native-infrastructure/readme/thunderlink/overwiew)
-- Architecture, responsibilities, and API concepts: [ThunderLink RGB Manager](https://docs.thunderstack.org/bitcoin-native-infrastructure/readme/thunderlink/rgb-manager)
+- Architecture, responsibilities, and API concepts: [ThunderLink RGB Node](https://docs.thunderstack.org/bitcoin-native-infrastructure/readme/thunderlink/rgb-manager)
 
 
 ## Client SDK
@@ -47,7 +47,7 @@ Typical flow for an online wallet:
 - Generate invoices (blinded or witness) and receive payments.
 - Build PSBTs for outgoing transfers; sign client‑side or by a dedicated signer; submit to finalize.
 
-For more details see the ThunderStack docs: [Overwiew](https://docs.thunderstack.org/bitcoin-native-infrastructure/readme/thunderlink/overwiew), [RGB Manager](https://docs.thunderstack.org/bitcoin-native-infrastructure/readme/thunderlink/rgb-manager).
+For more details see the ThunderStack docs: [Overwiew](https://docs.thunderstack.org/bitcoin-native-infrastructure/readme/thunderlink/overwiew), [RGB Node](https://docs.thunderstack.org/bitcoin-native-infrastructure/readme/thunderlink/rgb-manager).
 
 
 ## Wallet identification headers
@@ -272,7 +272,7 @@ Response:
 ## Security model
 
 - The RGB Node never needs application private keys. It constructs PSBTs; signing is performed by a separate signer service or client app, then submitted back.
-- For production deployments, place the node behind your own API gateway and auth. See the security guidance and architecture notes in the ThunderStack docs: [Overwiew](https://docs.thunderstack.org/bitcoin-native-infrastructure/readme/thunderlink/overwiew) and [RGB Manager](https://docs.thunderstack.org/bitcoin-native-infrastructure/readme/thunderlink/rgb-manager).
+- For production deployments, place the node behind your own API gateway and auth. See the security guidance and architecture notes in the ThunderStack docs: [Overwiew](https://docs.thunderstack.org/bitcoin-native-infrastructure/readme/thunderlink/overwiew) and [RGB Node](https://docs.thunderstack.org/bitcoin-native-infrastructure/readme/thunderlink/rgb-manager).
 
 
 ## Configuration and operations
