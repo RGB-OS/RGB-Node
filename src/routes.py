@@ -25,10 +25,10 @@ class WatchOnly(BaseModel):
 
 class CreateUtxosBegin(BaseModel):
     mnemonic: str = None
-    upTo: bool = False
+    up_to: bool = False
     num: int = 5
     size: int = 1000
-    feeRate: int = 5
+    fee_rate: int = 5
 
 
 
@@ -77,7 +77,7 @@ def list_unspents(wallet_dep: tuple[Wallet, object,str,str]=Depends(get_wallet))
 @router.post("/wallet/createutxosbegin",response_model=str)
 def create_utxos_begin(req: CreateUtxosBegin, wallet_dep: tuple[Wallet, object,str,str]=Depends(get_wallet)):
     wallet, online,xpub_van, xpub_col = wallet_dep
-    psbt = wallet.create_utxos_begin(online, req.upTo, req.num, req.size, req.feeRate, False)
+    psbt = wallet.create_utxos_begin(online, req.up_to, req.num, req.size, req.fee_rate, False)
     return psbt
 
 @router.post("/wallet/createutxosend",response_model=int)
