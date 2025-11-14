@@ -47,6 +47,16 @@ class TransactionTxModel(BaseModel):
             )
 
         return values
+class SendBtcBeginRequestModel(BaseModel):
+    address: str
+    amount: int
+    fee_rate: int = 3
+    skip_sync:bool = False
+class SendBtcEndRequestModel(BaseModel):
+    signed_psbt: str
+    skip_sync: bool = False
+class GetFeeEstimateRequestModel(BaseModel):
+    blocks: int
 
 class RegisterModel(BaseModel):
     address: str

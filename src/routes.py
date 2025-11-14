@@ -4,10 +4,10 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from src.dependencies import get_wallet,create_wallet
 from rgb_lib import BitcoinNetwork, Wallet,AssetSchema, Assignment
-from src.rgb_model import AssetNia, Backup, Balance, BtcBalance, DecodeRgbInvoiceRequestModel, DecodeRgbInvoiceResponseModel, FailTransferRequestModel, GetAssetResponseModel, IssueAssetNiaRequestModel, ListTransfersRequestModel, ReceiveData, Recipient, RefreshRequestModel, RegisterModel, RgbInvoiceRequestModel, SendAssetBeginModel, SendAssetBeginRequestModel, SendResult, Transfer, Unspent
+from src.rgb_model import AssetNia, Backup, Balance, BtcBalance, DecodeRgbInvoiceRequestModel, DecodeRgbInvoiceResponseModel, FailTransferRequestModel, GetAssetResponseModel, GetFeeEstimateRequestModel, IssueAssetNiaRequestModel, ListTransfersRequestModel, ReceiveData, Recipient, RefreshRequestModel, RegisterModel, RgbInvoiceRequestModel, SendAssetBeginModel, SendAssetBeginRequestModel, SendBtcBeginRequestModel, SendBtcEndRequestModel, SendResult, Transfer, Unspent
 from fastapi import APIRouter, Depends
 import os
-from src.wallet_utils import BACKUP_PATH, create_wallet_instance, get_backup_path, remove_backup_if_exists, restore_wallet_instance, test_wallet_instance
+from src.wallet_utils import BACKUP_PATH, create_wallet_instance, get_backup_path, remove_backup_if_exists, restore_wallet_instance, test_wallet_instance, WalletStateExistsError
 import shutil
 import uuid
 import rgb_lib
@@ -36,10 +36,10 @@ class SendAssetEndRequestModel(BaseModel):
     signed_psbt: str
 
 class CreateUtxosEnd(BaseModel):
-    signedPsbt: str
+    signed_psbt: str
 
 class AssetBalanceRequest(BaseModel):
-    assetId: str
+    asset_id: str
 
 @router.post("/wallet/generate_keys")
 def register_wallet():
@@ -52,6 +52,21 @@ def register_wallet(wallet_dep: tuple[Wallet, object,str,str]=Depends(create_wal
     btc_balance = wallet.get_btc_balance(online, False)
     address = wallet.get_address()
     return { "address": address, "btc_balance": btc_balance }
+@router.post("/wallet/get_fee_estimation")
+def get_fee_estimation(req:GetFeeEstimateRequestModel, wallet_dep: tuple[Wallet, object,str,str]=Depends(get_wallet)):
+    wallet, online,xpub_van, xpub_col = wallet_dep
+    fee_estimation = wallet.get_fee_estimation(online,req.blocks)
+    return fee_estimation
+@router.post("/wallet/sendbtcbegin")
+def send_btc_begin(req: SendBtcBeginRequestModel, wallet_dep: tuple[Wallet, object,str,str]=Depends(get_wallet)):
+    wallet, online,xpub_van, xpub_col = wallet_dep
+    psbt = wallet.send_btc_begin(online, req.address, req.amount, req.fee_rate, req.skip_sync)
+    return psbt
+@router.post("/wallet/sendbtcend")
+def send_btc_end(req: SendBtcEndRequestModel, wallet_dep: tuple[Wallet, object,str,str]=Depends(get_wallet)):
+    wallet, online,xpub_van, xpub_col = wallet_dep
+    result = wallet.send_btc_end(online, req.signed_psbt, req.skip_sync)
+    return result
 # response_model=List[Unspent]
 @router.post("/wallet/listunspents")
 def list_unspents(wallet_dep: tuple[Wallet, object,str,str]=Depends(get_wallet)):
@@ -68,7 +83,7 @@ def create_utxos_begin(req: CreateUtxosBegin, wallet_dep: tuple[Wallet, object,s
 @router.post("/wallet/createutxosend",response_model=int)
 def create_utxos_end(req: CreateUtxosEnd, wallet_dep: tuple[Wallet, object,str,str]=Depends(get_wallet)):
     wallet, online,xpub_van, xpub_col = wallet_dep
-    result = wallet.create_utxos_end(online, req.signedPsbt, False)
+    result = wallet.create_utxos_end(online, req.signed_psbt, False)
     return result
 
 @router.post("/wallet/listassets",response_model=GetAssetResponseModel)
@@ -80,6 +95,8 @@ def list_assets(wallet_dep: tuple[Wallet, object,str,str]=Depends(get_wallet)):
 @router.post("/wallet/btcbalance",response_model=BtcBalance)
 def get_btc_balance(wallet_dep: tuple[Wallet, object,str,str]=Depends(get_wallet)):
     wallet, online,xpub_van, xpub_col = wallet_dep
+    print("Getting BTC balance...")
+    print(xpub_van, xpub_col)
     btc_balance = wallet.get_btc_balance(online, True)
     return btc_balance
 
@@ -98,7 +115,7 @@ def issue_asset_nia(req: IssueAssetNiaRequestModel, wallet_dep: tuple[Wallet, ob
 @router.post("/wallet/assetbalance",response_model=Balance)
 def get_asset_balance(req: AssetBalanceRequest, wallet_dep: tuple[Wallet, object,str,str]=Depends(get_wallet)):
     wallet, _,xpub_van, xpub_col = wallet_dep
-    balance = wallet.get_asset_balance(req.assetId)
+    balance = wallet.get_asset_balance(req.asset_id)
     return balance
 
 @router.post("/wallet/decodergbinvoice")
@@ -115,7 +132,8 @@ def send_begin(req: SendAssetBeginRequestModel, wallet_dep: tuple[Wallet, object
     resolved_amount = Assignment.FUNGIBLE(req.amount)
     if resolved_amount is None:
         raise HTTPException(status_code=400, detail="Amount is required")
-    
+    if not (invoice_data.asset_id or req.asset_id):
+        raise HTTPException(status_code=400, detail="Missing asset_id: must be provided in invoice or request")
     # Check if recipient_id contains "wvout:" to determine if it's a witness send
     is_witness_send = "wvout:" in (invoice_data.recipient_id)
     # Set witness_data based on whether it's a witness send
@@ -265,11 +283,13 @@ def restore_wallet(
 ):
     remove_backup_if_exists(xpub_van)
     backup_path = get_backup_path(xpub_van)
+    print(backup_path)
     with open(backup_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
     try:
-        # Restore wallet from backup
         restore_wallet_instance(xpub_van,xpub_col,master_fingerprint, password, backup_path)
         return {"message": "Wallet restored successfully"}
+    except WalletStateExistsError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to restore wallet: {str(e)}")
