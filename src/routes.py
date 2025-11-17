@@ -55,8 +55,9 @@ def register_wallet(wallet_dep: tuple[Wallet, object,str,str]=Depends(create_wal
 @router.post("/wallet/get_fee_estimation")
 def get_fee_estimation(req:GetFeeEstimateRequestModel, wallet_dep: tuple[Wallet, object,str,str]=Depends(get_wallet)):
     wallet, online,xpub_van, xpub_col = wallet_dep
-    fee_estimation = wallet.get_fee_estimation(online,req.blocks)
-    return fee_estimation
+    # fee_estimation = wallet.get_fee_estimation(online,req.blocks)
+    # return fee_estimation
+    return 5
 @router.post("/wallet/sendbtcbegin")
 def send_btc_begin(req: SendBtcBeginRequestModel, wallet_dep: tuple[Wallet, object,str,str]=Depends(get_wallet)):
     wallet, online,xpub_van, xpub_col = wallet_dep

@@ -12,6 +12,13 @@ References:
 - [RGB Node](https://docs.thunderstack.org/bitcoin-native-infrastructure/readme/thunderlink/rgb-manager)
 
 
+## Public RGB Node Endpoints
+
+**Ready to use** — no setup required:
+
+- **Testnet**: `https://rgb-node.test.thunderstack.org/`
+- **Mainnet**: `https://rgb-node.thunderstack.org/`
+
 ## Client SDK
 
 To simplify integration with the RGB Node from JavaScript/TypeScript backends, you can use the official client SDK:
@@ -78,14 +85,19 @@ curl -X POST :8000/wallet/listassets \
 
 ## Quickstart
 
-You have two options to run RGB Node:
+You have three options to use RGB Node:
 
-1) [ThunderCloud](https://cloud.thunderstack.org/) managed deployment (recommended)
+1) **Public RGB Node endpoints** (easiest for testing)
+- Testnet: `https://rgb-node.test.thunderstack.org/`
+- Mainnet: `https://rgb-node.thunderstack.org/`
+- Ready to use immediately, no setup required
+- Perfect for development and testing
+
+2) [ThunderCloud](https://cloud.thunderstack.org/) managed deployment (recommended for production)
 - Fully configurable and ready to use on ThunderCloud
 - Launch, configure, and operate RGB Node with a few clicks
-- 
 
-2) Self‑host
+3) Self‑host
 - Use the Python or Docker instructions below
 - Configure env vars like `NETWORK` and `PROXY_ENDPOINT`
 - Pair with a signer if you want server‑side signing
@@ -143,6 +155,8 @@ docker compose up --build
 Below is a practical summary of key endpoints implemented in `src/routes.py`. Payload shapes are defined in `src/rgb_model.py`. All endpoints are `POST` unless specified.
 
 Base URL examples:
+- Public testnet: `https://rgb-node.test.thunderstack.org/`
+- Public mainnet: `https://rgb-node.thunderstack.org/`
 - Local dev: `http://127.0.0.1:8000`
 
 [API reference](https://docs.thunderstack.org/bitcoin-native-infrastructure/readme/thunderlink/rgb-manager/api-reference)
