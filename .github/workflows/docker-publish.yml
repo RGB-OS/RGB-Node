@@ -2,7 +2,7 @@ name: Build & Deploy
 
 on:
   push:
-    branches: [prod, main]
+    branches: [prod, main, public]
 
 concurrency:
   group: deploy-${{ github.ref_name }}
@@ -38,6 +38,10 @@ jobs:
             echo "TAG_PREFIX=test" >> $GITHUB_ENV
             echo "ECS_CLUSTER=${{ secrets.ECS_CLUSTER_TEST }}" >> $GITHUB_ENV
             echo "ECS_SERVICE=${{ secrets.ECS_SERVICE_TEST }}" >> $GITHUB_ENV
+          elif [[ "${GITHUB_REF_NAME}" == "public" ]]; then
+            echo "TAG_PREFIX=public" >> $GITHUB_ENV
+            echo "ECS_CLUSTER=${{ secrets.ECS_CLUSTER_PUBLIC }}" >> $GITHUB_ENV
+            echo "ECS_SERVICE=${{ secrets.ECS_SERVICE_PUBLIC }}" >> $GITHUB_ENV
           else
             echo "Unsupported branch ${GITHUB_REF_NAME}"; exit 1
           fi
