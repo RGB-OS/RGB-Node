@@ -49,14 +49,14 @@ def register_wallet():
 @router.post("/wallet/register", response_model=RegisterModel)
 def register_wallet(wallet_dep: tuple[Wallet, object,str,str]=Depends(create_wallet)):
     wallet, online ,xpub_van, xpub_col= wallet_dep
-    btc_balance = wallet.get_btc_balance(online, True)
+    btc_balance = wallet.get_btc_balance(online, False)
     address = wallet.get_address()
     return { "address": address, "btc_balance": btc_balance }
 # response_model=List[Unspent]
 @router.post("/wallet/listunspents")
 def list_unspents(wallet_dep: tuple[Wallet, object,str,str]=Depends(get_wallet)):
     wallet, online,xpub_van, xpub_col = wallet_dep
-    unspents = wallet.list_unspents(online, False, True)
+    unspents = wallet.list_unspents(online, False, False)
     return unspents
 
 @router.post("/wallet/createutxosbegin",response_model=str)
