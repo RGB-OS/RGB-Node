@@ -56,7 +56,7 @@ def register_wallet(wallet_dep: tuple[Wallet, object,str,str]=Depends(create_wal
 @router.post("/wallet/listunspents")
 def list_unspents(wallet_dep: tuple[Wallet, object,str,str]=Depends(get_wallet)):
     wallet, online,xpub_van, xpub_col = wallet_dep
-    unspents = wallet.list_unspents(online, False, False)
+    unspents = wallet.list_unspents(online, False, True)
     return unspents
 
 @router.post("/wallet/createutxosbegin",response_model=str)
