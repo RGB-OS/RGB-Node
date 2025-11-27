@@ -1,5 +1,5 @@
 -- Migration to drop and recreate tables with updated schema
--- Removes asset_id, recipient_id, batch_transfer_idx from refresh_jobs table
+-- Includes recipient_id and asset_id in refresh_jobs table for invoice_created jobs
 
 -- Drop existing tables (in reverse order of dependencies)
 DROP TABLE IF EXISTS refresh_watchers CASCADE;
@@ -18,6 +18,8 @@ CREATE TABLE refresh_jobs (
     xpub_col VARCHAR(255) NOT NULL,
     master_fingerprint VARCHAR(255) NOT NULL,
     trigger VARCHAR(50) NOT NULL DEFAULT 'manual',
+    recipient_id VARCHAR(255),
+    asset_id VARCHAR(255),
     status VARCHAR(50) NOT NULL DEFAULT 'pending',
     attempts INTEGER DEFAULT 0,
     max_retries INTEGER DEFAULT 10,
@@ -30,6 +32,8 @@ CREATE TABLE refresh_jobs (
 CREATE INDEX idx_refresh_jobs_status ON refresh_jobs(status);
 CREATE INDEX idx_refresh_jobs_created_at ON refresh_jobs(created_at);
 CREATE INDEX idx_refresh_jobs_xpub_van ON refresh_jobs(xpub_van);
+CREATE INDEX idx_refresh_jobs_recipient_id ON refresh_jobs(recipient_id);
+CREATE INDEX idx_refresh_jobs_asset_id ON refresh_jobs(asset_id);
 
 -- Active watchers
 CREATE TABLE refresh_watchers (

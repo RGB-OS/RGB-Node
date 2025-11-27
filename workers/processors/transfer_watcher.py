@@ -13,8 +13,10 @@ from src.queue import (
     create_watcher,
     update_watcher_status,
     stop_watcher,
+    get_watcher_status,
     acquire_wallet_lock,
     release_wallet_lock,
+    enqueue_refresh_job,
 )
 
 logger = logging.getLogger(__name__)
@@ -113,19 +115,28 @@ def watch_transfer(
     xpub_van = job['xpub_van']
     refresh_count = 0
     
-    # Create watcher entry when watcher starts
+    # Create watcher entry when watcher starts (only if it doesn't exist)
+    # If watcher already exists, preserve its expiration (e.g., 180s for invoice_created without asset_id)
     try:
-        create_watcher(
-            xpub_van=job['xpub_van'],
-            xpub_col=job['xpub_col'],
-            master_fingerprint=job['master_fingerprint'],
-            recipient_id=recipient_id,
-            asset_id=asset_id
-        )
-        logger.info(
-            f"[TransferWatcher] Wallet {xpub_van[:5]}...{xpub_van[-5:]} - Created watcher entry "
-            f"for transfer {recipient_id}"
-        )
+        existing_watcher = get_watcher_status(xpub_van, recipient_id)
+        if not existing_watcher:
+            # Only create if it doesn't exist - this preserves expiration set by job_processor
+            create_watcher(
+                xpub_van=job['xpub_van'],
+                xpub_col=job['xpub_col'],
+                master_fingerprint=job['master_fingerprint'],
+                recipient_id=recipient_id,
+                asset_id=asset_id
+            )
+            logger.info(
+                f"[TransferWatcher] Wallet {xpub_van[:5]}...{xpub_van[-5:]} - Created watcher entry "
+                f"for transfer {recipient_id}"
+            )
+        else:
+            logger.debug(
+                f"[TransferWatcher] Wallet {xpub_van[:5]}...{xpub_van[-5:]} - Watcher already exists "
+                f"for transfer {recipient_id}, preserving expiration"
+            )
     except Exception as e:
         logger.warning(
             f"[TransferWatcher] Wallet {xpub_van[:5]}...{xpub_van[-5:]} - Failed to create watcher entry: {e}"
@@ -147,6 +158,45 @@ def watch_transfer(
     try:
         while not shutdown_flag():
             try:
+                # Check if watcher has expired (for invoice_created without asset_id)
+                if not asset_id:
+                    watcher = get_watcher_status(xpub_van, recipient_id)
+                    if watcher:
+                        expires_at = watcher.get('expires_at')
+                        if expires_at:
+                            # expires_at is already normalized to Unix timestamp
+                            if isinstance(expires_at, int):
+                                current_time = int(time.time())
+                                time_until_expiry = expires_at - current_time
+                                logger.info(
+                                    f"[TransferWatcher] Wallet {xpub_van[:5]}...{xpub_van[-5:]} - "
+                                    f"Watcher expires in {time_until_expiry} seconds (expires_at={expires_at}, current={current_time})"
+                                )
+                                if current_time >= expires_at:
+                                    # Watcher expired after 15 min, trigger sync job
+                                    logger.info(
+                                        f"[TransferWatcher] Wallet {xpub_van[:5]}...{xpub_van[-5:]} - "
+                                        f"Watcher for {recipient_id} expired (15 min), triggering sync job"
+                                    )
+                                    try:
+                                        enqueue_refresh_job(
+                                            xpub_van=job['xpub_van'],
+                                            xpub_col=job['xpub_col'],
+                                            master_fingerprint=job['master_fingerprint'],
+                                            trigger="sync"
+                                        )
+                                        logger.info(
+                                            f"[TransferWatcher] Wallet {xpub_van[:5]}...{xpub_van[-5:]} - "
+                                            f"Triggered sync job after watcher expiration"
+                                        )
+                                    except Exception as e:
+                                        logger.error(
+                                            f"[TransferWatcher] Failed to trigger sync job: {e}", exc_info=True
+                                        )
+                                    update_watcher_status(xpub_van, recipient_id, 'expired', refresh_count)
+                                    stop_watcher(xpub_van, recipient_id)
+                                    return
+                
                 # Get transfer status
                 transfer = api_client.get_transfer_status(transfer_job)
                 

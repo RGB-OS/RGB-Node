@@ -8,6 +8,8 @@ CREATE TABLE IF NOT EXISTS refresh_jobs (
     xpub_col VARCHAR(255) NOT NULL,
     master_fingerprint VARCHAR(255) NOT NULL,
     trigger VARCHAR(50) NOT NULL DEFAULT 'manual',
+    recipient_id VARCHAR(255),
+    asset_id VARCHAR(255),
     status VARCHAR(50) NOT NULL DEFAULT 'pending',
     attempts INTEGER DEFAULT 0,
     max_retries INTEGER DEFAULT 10,
@@ -20,6 +22,8 @@ CREATE TABLE IF NOT EXISTS refresh_jobs (
 CREATE INDEX IF NOT EXISTS idx_refresh_jobs_status ON refresh_jobs(status);
 CREATE INDEX IF NOT EXISTS idx_refresh_jobs_created_at ON refresh_jobs(created_at);
 CREATE INDEX IF NOT EXISTS idx_refresh_jobs_xpub_van ON refresh_jobs(xpub_van);
+CREATE INDEX IF NOT EXISTS idx_refresh_jobs_recipient_id ON refresh_jobs(recipient_id);
+CREATE INDEX IF NOT EXISTS idx_refresh_jobs_asset_id ON refresh_jobs(asset_id);
 
 -- Active watchers
 CREATE TABLE IF NOT EXISTS refresh_watchers (

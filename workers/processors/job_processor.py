@@ -6,7 +6,7 @@ Routes jobs to appropriate handlers and manages job lifecycle.
 import logging
 from typing import Dict, Any
 from workers.processors.unified_handler import process_wallet_unified
-from src.queue import mark_job_completed, mark_job_failed
+from src.queue import mark_job_completed, mark_job_failed, create_watcher, get_watcher_status
 
 logger = logging.getLogger(__name__)
 
@@ -52,16 +52,46 @@ def process_job(job: Dict[str, Any], shutdown_flag: callable) -> None:
         return
     
     trigger = job.get('trigger', 'manual')
+    recipient_id = job.get('recipient_id')
+    asset_id = job.get('asset_id')
     attempts = job.get('attempts', 0)
     
     logger.info(
-        f"[JobProcessor] Processing job {job_id}: trigger={trigger}"
+        f"[JobProcessor] Processing job {job_id}: trigger={trigger}, recipient_id={recipient_id}, asset_id={asset_id}"
     )
     
     try:
-        # All jobs are now wallet refresh jobs (one per wallet)
-        process_wallet_unified(job, shutdown_flag)
-        mark_job_completed(job_id)
+        # Special handling for invoice_created without asset_id
+        if trigger == "invoice_created" and recipient_id and not asset_id:
+            # Just create watcher with 15 min expiration (900 seconds)
+            xpub_van = job.get('xpub_van')
+            xpub_col = job.get('xpub_col')
+            master_fingerprint = job.get('master_fingerprint')
+            
+            # Check if watcher already exists
+            existing_watcher = get_watcher_status(xpub_van, recipient_id)
+            if existing_watcher:
+                logger.info(
+                    f"[JobProcessor] Watcher already exists for {xpub_van}:{recipient_id}, skipping creation"
+                )
+            else:
+                # Create watcher with 15 min expiration
+                create_watcher(
+                    xpub_van=xpub_van,
+                    xpub_col=xpub_col,
+                    master_fingerprint=master_fingerprint,
+                    recipient_id=recipient_id,
+                    asset_id=None,
+                    expiration_seconds=180  # 15 minutes
+                )
+                logger.info(
+                    f"[JobProcessor] Created watcher for invoice {recipient_id} (15 min expiration)"
+                )
+            mark_job_completed(job_id)
+        else:
+            # All other jobs: process wallet unified (will create watchers if needed)
+            process_wallet_unified(job, shutdown_flag)
+            mark_job_completed(job_id)
     except Exception as e:
         logger.error(
             f"[JobProcessor] Error processing job {job_id}: {e}", exc_info=True

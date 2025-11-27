@@ -21,29 +21,34 @@ def enqueue_refresh_job(
     xpub_van: str,
     xpub_col: str,
     master_fingerprint: str,
-    trigger: str = "manual"
+    trigger: str = "manual",
+    recipient_id: Optional[str] = None,
+    asset_id: Optional[str] = None
 ) -> str:
     """
     Enqueue a refresh job to PostgreSQL queue.
     
     Only manages jobs - does NOT create watchers.
-    One job per wallet (job_id is deterministic UUID from xpub_van).
+    One job per wallet per trigger (job_id is deterministic UUID from xpub_van + trigger).
+    For invoice_created jobs, recipient_id and asset_id can be provided.
     
     Args:
         xpub_van: Vanilla xpub for wallet identification
         xpub_col: Colored xpub for wallet identification
         master_fingerprint: Master fingerprint for wallet identification
-        trigger: What triggered this refresh ("asset_sent", "manual", "recovery")
+        trigger: What triggered this refresh ("asset_sent", "sync", "manual", "recovery", "invoice_created", etc.)
+        recipient_id: Optional recipient ID (for invoice_created jobs)
+        asset_id: Optional asset ID (for invoice_created jobs, can be None)
     
     Returns:
-        job_id: Unique job identifier (deterministic UUID from xpub_van)
+        job_id: Unique job identifier (deterministic UUID from xpub_van + trigger)
         
     Raises:
         psycopg2.Error: If database operation fails
     """
-    # Generate deterministic UUID from xpub_van (one job per wallet)
+    # Generate deterministic UUID from xpub_van + trigger (allows multiple jobs per wallet)
     wallet_namespace = uuid.UUID('6ba7b810-9dad-11d1-80b4-00c04fd430c8')  # Fixed namespace for wallet jobs
-    job_id = str(uuid.uuid5(wallet_namespace, xpub_van))
+    job_id = str(uuid.uuid5(wallet_namespace, f"{xpub_van}:{trigger}"))
     
     try:
         with get_db_connection() as conn:
@@ -52,10 +57,12 @@ def enqueue_refresh_job(
                 cur.execute("""
                     INSERT INTO refresh_jobs (
                         job_id, xpub_van, xpub_col, master_fingerprint,
-                        trigger, status, created_at, max_retries
-                    ) VALUES (%s, %s, %s, %s, %s, %s, NOW(), %s)
+                        trigger, recipient_id, asset_id, status, created_at, max_retries
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW(), %s)
                     ON CONFLICT (job_id) DO UPDATE SET
                         trigger = EXCLUDED.trigger,
+                        recipient_id = EXCLUDED.recipient_id,
+                        asset_id = EXCLUDED.asset_id,
                         created_at = CASE 
                             WHEN refresh_jobs.status IN ('pending', 'processing') 
                             THEN refresh_jobs.created_at 
@@ -64,7 +71,7 @@ def enqueue_refresh_job(
                     RETURNING job_id
                 """, (
                     job_id, xpub_van, xpub_col, master_fingerprint,
-                    trigger, 'pending', MAX_RETRIES
+                    trigger, recipient_id, asset_id, 'pending', MAX_RETRIES
                 ))
                 
                 result = cur.fetchone()

@@ -161,6 +161,15 @@ def main() -> None:
     else:
         logger.warning("API health check failed (may be normal)")
     
+    # Recover active watchers on startup (create pending jobs for wallets with active watchers)
+    try:
+        from src.queue.recovery import recover_active_watchers
+        logger.info("Recovering active watchers on startup...")
+        recovered = recover_active_watchers()
+        logger.info(f"Recovery complete: {recovered} watchers recovered")
+    except Exception as e:
+        logger.error(f"Failed to recover active watchers on startup: {e}", exc_info=True)
+    
     last_heartbeat = time.time()
     heartbeat_interval = 30
     last_cleanup = time.time()
@@ -175,7 +184,7 @@ def main() -> None:
                     cleanup_dead_processes()
                     last_cleanup = current_time
                 
-                # Find wallets with pending jobs that don't have active processes
+                # Find wallets that need processing (pending jobs OR active watchers)
                 try:
                     with get_db_connection() as conn:
                         with conn.cursor(cursor_factory=RealDictCursor) as cur:
@@ -188,7 +197,20 @@ def main() -> None:
                             
                             wallets_with_pending_jobs = [row['xpub_van'] for row in cur.fetchall()]
                             
-                            for xpub_van in wallets_with_pending_jobs:
+                            # Get distinct wallets that have active watchers
+                            cur.execute("""
+                                SELECT DISTINCT xpub_van
+                                FROM refresh_watchers
+                                WHERE status = 'watching'
+                                AND (expires_at IS NULL OR expires_at > NOW())
+                            """)
+                            
+                            wallets_with_active_watchers = [row['xpub_van'] for row in cur.fetchall()]
+                            
+                            # Combine both sets (wallets that need processing)
+                            wallets_needing_processing = set(wallets_with_pending_jobs) | set(wallets_with_active_watchers)
+                            
+                            for xpub_van in wallets_needing_processing:
                                 # Check if process already exists for this wallet
                                 if xpub_van in active_processes:
                                     process = active_processes[xpub_van]

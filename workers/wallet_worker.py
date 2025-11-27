@@ -28,8 +28,6 @@ from workers.processors import process_job
 from workers.processors.transfer_watcher import watch_transfer
 from src.queue import (
     dequeue_job_for_wallet,
-    mark_job_completed,
-    mark_job_failed,
     get_active_watchers_for_wallet,
 )
 
@@ -149,19 +147,18 @@ def main() -> None:
                 )
                 
                 try:
+                    # process_job handles marking job as completed/failed internally
                     process_job(job, get_shutdown_flag)
-                    mark_job_completed(job_id)
                     logger.info(
                         f"[WalletWorker] Wallet {xpub_van[:5]}...{xpub_van[-5:]} - "
                         f"Job {job_id} completed"
                     )
                 except Exception as e:
+                    # process_job handles marking job as failed internally, but log error here
                     logger.error(
                         f"[WalletWorker] Wallet {xpub_van[:5]}...{xpub_van[-5:]} - "
                         f"Error processing job {job_id}: {e}", exc_info=True
                     )
-                    attempts = job.get('attempts', 0)
-                    mark_job_failed(job_id, str(e), attempts + 1)
             
             # Process watchers for this wallet (sequentially)
             if not get_shutdown_flag():

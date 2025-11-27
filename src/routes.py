@@ -229,7 +229,9 @@ def generate_invoice(
             xpub_van=xpub_van,
             xpub_col=xpub_col,
             master_fingerprint=master_fingerprint,
-            trigger="invoice_created"
+            trigger="invoice_created",
+            recipient_id=receive.recipient_id,
+            asset_id=req.asset_id
         )
         logger.info(f"Enqueued refresh job {job_id} for invoice {receive.recipient_id}")
     except Exception as e:
@@ -255,7 +257,9 @@ def generate_invoice(
             xpub_van=xpub_van,
             xpub_col=xpub_col,
             master_fingerprint=master_fingerprint,
-            trigger="invoice_created"
+            trigger="invoice_created",
+            recipient_id=receive.recipient_id,
+            asset_id=req.asset_id
         )
         logger.info(f"Enqueued refresh job {job_id} for invoice {receive.recipient_id}")
     except Exception as e:
@@ -281,7 +285,9 @@ def generate_invoice(
             xpub_van=xpub_van,
             xpub_col=xpub_col,
             master_fingerprint=master_fingerprint,
-            trigger="invoice_created"
+            trigger="invoice_created",
+            recipient_id=receive.recipient_id,
+            asset_id=req.asset_id
         )
         logger.info(f"Enqueued refresh job {job_id} for invoice {receive.recipient_id}")
     except Exception as e:
@@ -316,9 +322,24 @@ def refresh_wallet(wallet_dep: tuple[Wallet, object,str,str]=Depends(get_wallet)
     return refreshed_transfers
 
 @router.post("/wallet/sync")
-def wallet_sync(wallet_dep: tuple[Wallet, object,str,str]=Depends(get_wallet)):
+def wallet_sync(
+    wallet_dep: tuple[Wallet, object,str,str]=Depends(get_wallet),
+    master_fingerprint: str = Header(..., alias="master-fingerprint")
+):
     wallet, online,xpub_van, xpub_col = wallet_dep
     wallet.sync(online)
+    
+    try:
+        # job_id = enqueue_refresh_job(
+        #     xpub_van=xpub_van,
+        #     xpub_col=xpub_col,
+        #     master_fingerprint=master_fingerprint,
+        #     trigger="sync"
+        # )
+        logger.info(f"Enqueued refresh job {job_id} for wallet sync")
+    except Exception as e:
+        logger.error(f"Failed to enqueue refresh job: {e}", exc_info=True)
+    
     return {"message": "Wallet synced successfully"}
 
 @router.post("/wallet/backup")

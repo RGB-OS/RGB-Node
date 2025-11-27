@@ -13,7 +13,7 @@ API_URL = os.getenv("API_URL", "http://localhost:8000")
 HTTP_TIMEOUT = int(os.getenv("HTTP_TIMEOUT", "60"))
 
 # Worker Configuration
-REFRESH_INTERVAL = int(os.getenv("REFRESH_INTERVAL", "100"))
+REFRESH_INTERVAL = int(os.getenv("REFRESH_INTERVAL", "30"))
 MAX_RETRIES = int(os.getenv("MAX_REFRESH_RETRIES", "10"))
 RETRY_DELAY_BASE = int(os.getenv("RETRY_DELAY_BASE", "5"))
 POLL_INTERVAL = int(os.getenv("POLL_INTERVAL", "1"))
