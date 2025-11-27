@@ -1,6 +1,24 @@
 version: '3.9'
 
 services:
+  postgres:
+    image: postgres:15-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=rgb_node
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   thunderlink-python:
     build:
       context: .
@@ -10,4 +28,31 @@ services:
       - .:/app
     environment:
       - PYTHONUNBUFFERED=1
+      - POSTGRES_URL=postgresql://postgres:postgres@postgres:5432/rgb_node
+    depends_on:
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
+
+  refresh-worker:
+    build:
+      context: .
+    command: python -m workers.refresh_worker
+    volumes:
+      - .:/app
+    environment:
+      - PYTHONUNBUFFERED=1
+      - API_URL=http://thunderlink-python:8000
+      - POSTGRES_URL=postgresql://postgres:postgres@postgres:5432/rgb_node
+      - REFRESH_INTERVAL=100
+      - MAX_REFRESH_RETRIES=10
+      - RETRY_DELAY_BASE=5
+      - POLL_INTERVAL=1
+    depends_on:
+      - postgres
+      - thunderlink-python
+    restart: unless-stopped
+    # Can scale: docker-compose up --scale refresh-worker=3
+
+volumes:
+  postgres_data:

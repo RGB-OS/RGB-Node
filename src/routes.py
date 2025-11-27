@@ -3,14 +3,18 @@ from fastapi import File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from src.dependencies import get_wallet,create_wallet
-from rgb_lib import BitcoinNetwork, Wallet,AssetSchema, Assignment
+from rgb_lib import BitcoinNetwork, Wallet, AssetSchema, Assignment
 from src.rgb_model import AssetNia, Backup, Balance, BtcBalance, DecodeRgbInvoiceRequestModel, DecodeRgbInvoiceResponseModel, FailTransferRequestModel, GetAssetResponseModel, GetFeeEstimateRequestModel, IssueAssetNiaRequestModel, ListTransfersRequestModel, ReceiveData, Recipient, RefreshRequestModel, RegisterModel, RgbInvoiceRequestModel, SendAssetBeginModel, SendAssetBeginRequestModel, SendBtcBeginRequestModel, SendBtcEndRequestModel, SendResult, Transfer, Unspent
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Header
 import os
 from src.wallet_utils import BACKUP_PATH, create_wallet_instance, get_backup_path, remove_backup_if_exists, restore_wallet_instance, test_wallet_instance, WalletStateExistsError
+from src.refresh_queue import enqueue_refresh_job, get_job_status, get_watcher_status
 import shutil
 import uuid
+import logging
 import rgb_lib
+
+logger = logging.getLogger(__name__)
 
 env_network = int(os.getenv("NETWORK", "3"))
 NETWORK = BitcoinNetwork(env_network)
@@ -188,34 +192,102 @@ def sign_psbt(req:SignPSBT):
     print("signed_psbt", signed_psbt)
     return signed_psbt
 @router.post("/wallet/sendend", response_model=SendResult)
-def send_begin(req: SendAssetEndRequestModel, wallet_dep: tuple[Wallet, object,str,str]=Depends(get_wallet)):
+def send_begin(
+    req: SendAssetEndRequestModel, 
+    wallet_dep: tuple[Wallet, object,str,str]=Depends(get_wallet),
+    master_fingerprint: str = Header(..., alias="master-fingerprint")
+):
     wallet, online,xpub_van, xpub_col = wallet_dep
     result = wallet.send_end(online, req.signed_psbt, False)
+    
+    try:
+        job_id = enqueue_refresh_job(
+            xpub_van=xpub_van,
+            xpub_col=xpub_col,
+            master_fingerprint=master_fingerprint,
+            trigger="asset_sent"
+        )
+        logger.info(f"Enqueued refresh job {job_id} for asset send")
+    except Exception as e:
+        logger.error(f"Failed to enqueue refresh job: {e}", exc_info=True)
+    
     return result
 
 @router.post("/wallet/blindreceive", response_model=ReceiveData)
-def generate_invoice(req: RgbInvoiceRequestModel, wallet_dep: tuple[Wallet, object,str,str]=Depends(get_wallet)):
+def generate_invoice(
+    req: RgbInvoiceRequestModel, 
+    wallet_dep: tuple[Wallet, object,str,str]=Depends(get_wallet),
+    master_fingerprint: str = Header(..., alias="master-fingerprint")
+):
     wallet, online,xpub_van, xpub_col = wallet_dep
     assignment = Assignment.FUNGIBLE(req.amount)
     duration_seconds=1500
     receive = wallet.blind_receive(req.asset_id, assignment, duration_seconds, [PROXY_URL], 3)
+    
+    try:
+        job_id = enqueue_refresh_job(
+            xpub_van=xpub_van,
+            xpub_col=xpub_col,
+            master_fingerprint=master_fingerprint,
+            trigger="invoice_created"
+        )
+        logger.info(f"Enqueued refresh job {job_id} for invoice {receive.recipient_id}")
+    except Exception as e:
+        logger.error(f"Failed to enqueue refresh job: {e}", exc_info=True)
+        # Don't fail the request if queue fails
+    
     return receive
 
 # old methot should be removed after prod update
 @router.post("/blindreceive", response_model=ReceiveData)
-def generate_invoice(req: RgbInvoiceRequestModel, wallet_dep: tuple[Wallet, object,str,str]=Depends(get_wallet)):
+def generate_invoice(
+    req: RgbInvoiceRequestModel, 
+    wallet_dep: tuple[Wallet, object,str,str]=Depends(get_wallet),
+    master_fingerprint: str = Header(..., alias="master-fingerprint")
+):
     wallet, online,xpub_van, xpub_col = wallet_dep
     assignment = Assignment.FUNGIBLE(req.amount)
     duration_seconds=1500
     receive = wallet.blind_receive(req.asset_id, assignment, duration_seconds, [PROXY_URL], 3)
+    
+    try:
+        job_id = enqueue_refresh_job(
+            xpub_van=xpub_van,
+            xpub_col=xpub_col,
+            master_fingerprint=master_fingerprint,
+            trigger="invoice_created"
+        )
+        logger.info(f"Enqueued refresh job {job_id} for invoice {receive.recipient_id}")
+    except Exception as e:
+        logger.error(f"Failed to enqueue refresh job: {e}", exc_info=True)
+        # Don't fail the request if queue fails
+    
     return receive
 
 @router.post("/wallet/witnessreceive", response_model=ReceiveData)
-def generate_invoice(req: RgbInvoiceRequestModel, wallet_dep: tuple[Wallet, object,str,str]=Depends(get_wallet)):
+def generate_invoice(
+    req: RgbInvoiceRequestModel, 
+    wallet_dep: tuple[Wallet, object,str,str]=Depends(get_wallet),
+    master_fingerprint: str = Header(..., alias="master-fingerprint")
+):
     wallet, online,xpub_van, xpub_col = wallet_dep
     assignment = Assignment.FUNGIBLE(req.amount)
     duration_seconds=1500
     receive = wallet.witness_receive(req.asset_id, assignment, duration_seconds, [PROXY_URL], 3)
+    
+    # Enqueue refresh watcher job for invoice
+    try:
+        job_id = enqueue_refresh_job(
+            xpub_van=xpub_van,
+            xpub_col=xpub_col,
+            master_fingerprint=master_fingerprint,
+            trigger="invoice_created"
+        )
+        logger.info(f"Enqueued refresh job {job_id} for invoice {receive.recipient_id}")
+    except Exception as e:
+        logger.error(f"Failed to enqueue refresh job: {e}", exc_info=True)
+        # Don't fail the request if queue fails
+    
     return receive
 
 @router.post("/wallet/failtransfers")
@@ -294,3 +366,19 @@ def restore_wallet(
         raise HTTPException(status_code=409, detail=str(exc))
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to restore wallet: {str(e)}")
+
+@router.get("/wallet/refresh/status/{job_id}")
+def get_refresh_job_status(job_id: str):
+    """Get status of a refresh job."""
+    status = get_job_status(job_id)
+    if not status:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return status
+
+@router.get("/wallet/refresh/watcher/{xpub_van}/{recipient_id}")
+def get_refresh_watcher_status(xpub_van: str, recipient_id: str):
+    """Get status of a refresh watcher for a specific recipient."""
+    status = get_watcher_status(xpub_van, recipient_id)
+    if not status:
+        raise HTTPException(status_code=404, detail="Watcher not found")
+    return status

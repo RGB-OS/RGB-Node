@@ -3,9 +3,11 @@ FROM python:3.12-slim
 WORKDIR /app
 
 COPY requirements.txt .
+COPY source/rgb_lib-0.3.0a14-cp312-cp312-manylinux_2_36_x86_64.whl ./source/
 COPY . .
 
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir source/rgb_lib-0.3.0a14-cp312-cp312-manylinux_2_36_x86_64.whl && \
+    pip install --no-cache-dir -r requirements.txt
 
 EXPOSE 8000
 
