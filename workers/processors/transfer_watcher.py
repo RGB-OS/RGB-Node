@@ -71,12 +71,9 @@ def watch_transfer(
     xpub_van = job['xpub_van']
     refresh_count = 0
     
-    # Create watcher entry when watcher starts (only if it doesn't exist)
-    # If watcher already exists, preserve its expiration (e.g., 180s for invoice_created without asset_id)
     try:
         existing_watcher = get_watcher_status(xpub_van, recipient_id)
         if not existing_watcher:
-            # Only create if it doesn't exist - this preserves expiration set by job_processor
             create_watcher(
                 xpub_van=job['xpub_van'],
                 xpub_col=job['xpub_col'],
@@ -105,7 +102,6 @@ def watch_transfer(
     
     api_client = get_api_client()
     
-    # Create job dict for API calls (needs recipient_id for get_transfer_status)
     transfer_job = job.copy()
     transfer_job['recipient_id'] = recipient_id
     if asset_id:
@@ -114,7 +110,6 @@ def watch_transfer(
     try:
         while not shutdown_flag():
             try:
-                # Check if watcher has expired (for invoice_created without asset_id)
                 if not asset_id:
                     watcher = get_watcher_status(xpub_van, recipient_id)
                     if watcher:
@@ -153,7 +148,6 @@ def watch_transfer(
                                     stop_watcher(xpub_van, recipient_id)
                                     return
                 
-                # Get transfer status
                 transfer = api_client.get_transfer_status(transfer_job)
                 
                 if not transfer:
@@ -183,7 +177,6 @@ def watch_transfer(
                         )
                         return
                     
-                    # Check for expiration
                     if is_transfer_expired(transfer):
                         update_watcher_status(xpub_van, recipient_id, 'expired', refresh_count)
                         stop_watcher(xpub_van, recipient_id)
@@ -193,7 +186,6 @@ def watch_transfer(
                         )
                         return
                 
-                # Refresh wallet state (with lock to prevent concurrent refreshes)
                 try:
                     if acquire_wallet_lock(xpub_van, ttl=30):
                         try:

@@ -17,11 +17,11 @@ REFRESH_INTERVAL = int(os.getenv("REFRESH_INTERVAL", "30"))
 MAX_RETRIES = int(os.getenv("MAX_REFRESH_RETRIES", "10"))
 RETRY_DELAY_BASE = int(os.getenv("RETRY_DELAY_BASE", "5"))
 POLL_INTERVAL = int(os.getenv("POLL_INTERVAL", "1"))
-WORKER_THREADS = int(os.getenv("WORKER_THREADS", "4"))  # Number of parallel job processors
 
 # Wallet Worker Configuration
 WALLET_WORKER_IDLE_TIMEOUT = int(os.getenv("WALLET_WORKER_IDLE_TIMEOUT", "60"))  # Seconds before terminating idle process
 WALLET_WORKER_POLL_INTERVAL = int(os.getenv("WALLET_WORKER_POLL_INTERVAL", "5"))  # How often to check for work
+MAX_WALLET_PROCESSES = int(os.getenv("MAX_WALLET_PROCESSES", "50"))  # Maximum concurrent wallet worker processes
 
 # Logging Configuration
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()

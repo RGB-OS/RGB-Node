@@ -7,106 +7,252 @@ How the automatic wallet state refresh system works.
 RGB Node automatically syncs wallet state when:
 - **Invoices are created** (`/wallet/blindreceive`, `/wallet/witnessreceive`)
 - **Assets are sent** (`/wallet/sendend`)
+- **Wallet is synced** (`/wallet/sync`)
 
-The system uses PostgreSQL to queue refresh jobs and a background worker to process them.
+The system uses PostgreSQL to queue refresh jobs and a process-based orchestrator that spawns dedicated wallet worker processes.
 
 ## Architecture
 
 ```
-┌─────────────┐         ┌──────────────┐         ┌──────────────┐
-│   FastAPI   │────────▶│  PostgreSQL  │◀────────│   Worker     │
-│   (API)     │ Enqueue │   (Queue)    │  Poll   │  (Processor) │
-└─────────────┘         └──────────────┘         └──────────────┘
+┌─────────────┐         ┌──────────────┐         ┌──────────────────┐
+│   FastAPI   │────────▶│  PostgreSQL  │◀────────│ Refresh Worker   │
+│   (API)     │ Enqueue │   (Queue)    │  Poll   │ (Orchestrator)    │
+└─────────────┘         └──────────────┘         └──────────────────┘
       │                         │                         │
       │                         │                         │
+      │                         │                         ├──▶ Wallet Worker 1 (xpub_van_1)
+      │                         │                         │    - Processes jobs sequentially
+      │                         │                         │    - Processes watchers sequentially
+      │                         │                         │
+      │                         │                         ├──▶ Wallet Worker 2 (xpub_van_2)
+      │                         │                         │    - Processes jobs sequentially
+      │                         │                         │    - Processes watchers sequentially
+      │                         │                         │
+      │                         │                         └──▶ Wallet Worker N (xpub_van_N)
+      │                         │                              (up to MAX_WALLET_PROCESSES)
+      │                         │
       └─────────────────────────┴─────────────────────────┘
                     HTTP Calls to /wallet/refresh
 ```
 
+## Key Concepts
+
+### Jobs
+- **One job per wallet per trigger** (job_id = UUID5(xpub_van + trigger))
+- Jobs are stored in `refresh_jobs` table
+- Status: `pending` → `processing` → `completed`/`failed`
+- Different triggers create different jobs for the same wallet (sync, send, invoice_created)
+
+### Watchers
+- **One watcher per transfer** (unique by xpub_van + recipient_id)
+- Watchers are stored in `refresh_watchers` table
+- Status: `watching` → `settled`/`failed`/`expired`
+- Watchers monitor transfers until completion or expiration
+
+### Wallet Locks
+- **Prevents concurrent refreshes** of the same wallet
+- Stored in `wallet_locks` table
+- Auto-expires after 30 seconds (TTL)
+- Used by both jobs and watchers when refreshing wallet state
+
 ## Flow Types
 
-### 1. Invoice Watching Flow
+### 1. Invoice Created Flow (with asset_id)
 
-**Trigger**: Invoice created via `/wallet/blindreceive` or `/wallet/witnessreceive`
+**Trigger**: Invoice created via `/wallet/blindreceive` or `/wallet/witnessreceive` (with asset_id)
 
 **Steps**:
-1. API creates invoice and enqueues refresh job with `recipient_id`
-2. Worker picks up job and starts watching
-3. Worker continuously:
-   - Checks transfer status via `/wallet/listtransfers`
-   - Refreshes wallet via `/wallet/refresh` every `REFRESH_INTERVAL` seconds
-   - Monitors until transfer reaches terminal state (`SETTLED`, `FAILED`, or expired)
-4. Watcher stops when transfer completes or expires
+1. API creates invoice and enqueues job with `trigger="invoice_created"`, `recipient_id`, `asset_id`
+2. Orchestrator detects wallet with pending job and spawns wallet worker process
+3. Wallet worker dequeues job and calls `process_wallet_unified()`:
+   - Acquires wallet lock
+   - Refreshes wallet state
+   - Lists all assets
+   - For each asset, lists transfers
+   - For incomplete transfers, creates watchers (if they don't exist)
+   - Releases wallet lock
+4. Job completes, wallet worker processes watchers:
+   - For each active watcher, calls `watch_transfer()`
+   - Watcher continuously monitors transfer status
+   - Refreshes wallet every `REFRESH_INTERVAL` seconds (with lock)
+   - Stops when transfer reaches terminal state
 
 **Database**:
-- Job stored in `refresh_jobs` table
-- Watcher state in `refresh_watchers` table (tracks status, refresh count, expiration)
+- Job in `refresh_jobs` table (with recipient_id and asset_id)
+- Watcher entries in `refresh_watchers` table for incomplete transfers
 
-### 2. Asset Send Flow
+### 2. Invoice Created Flow (without asset_id)
+
+**Trigger**: Invoice created via `/wallet/blindreceive` or `/wallet/witnessreceive` (without asset_id)
+
+**Steps**:
+1. API creates invoice and enqueues job with `trigger="invoice_created"`, `recipient_id`, `asset_id=None`
+2. Orchestrator spawns wallet worker process
+3. Wallet worker processes job:
+   - Creates watcher with 3 min expiration (180 seconds)
+   - Job completes immediately
+4. Wallet worker processes watcher:
+   - Watcher monitors transfer and refreshes wallet every `REFRESH_INTERVAL` seconds
+   - After 3 minutes, watcher expires and triggers a sync job
+   - Sync job refreshes wallet and creates watchers for any incomplete transfers found
+
+**Database**:
+- Job in `refresh_jobs` table (with recipient_id, asset_id=None)
+- Watcher in `refresh_watchers` table with 3 min expiration
+
+### 3. Asset Send Flow
 
 **Trigger**: Asset sent via `/wallet/sendend`
 
 **Steps**:
-1. API finalizes transfer and enqueues refresh job (no `recipient_id`)
-2. Worker picks up job and refreshes wallet immediately
-3. Worker retries with exponential backoff if refresh fails (up to `MAX_RETRIES`)
-4. Job completes after successful refresh
+1. API finalizes transfer and enqueues job with `trigger="asset_sent"`
+2. Orchestrator spawns wallet worker process
+3. Wallet worker processes job:
+   - Acquires wallet lock
+   - Refreshes wallet state
+   - Lists assets and transfers
+   - Creates watchers for incomplete transfers
+   - Releases wallet lock
+4. Job completes, wallet worker processes watchers for any incomplete transfers
 
 **Database**:
-- Job stored in `refresh_jobs` table
-- No watcher created (one-time refresh)
+- Job in `refresh_jobs` table
+- Watcher entries created for incomplete transfers
 
-## Components
+### 4. Sync Flow
 
-### Queue (`src/queue/`)
+**Trigger**: Wallet synced via `/wallet/sync`
 
-- **`jobs.py`**: Job enqueueing, dequeuing, status updates
-- **`watchers.py`**: Watcher state management (create, update, stop)
-- **`locks.py`**: Wallet locks to prevent concurrent refreshes
-- **`recovery.py`**: Automatic recovery of active watchers on startup
+**Steps**:
+1. API syncs wallet and enqueues job with `trigger="sync"`
+2. Orchestrator spawns wallet worker process
+3. Wallet worker processes job:
+   - Acquires wallet lock
+   - Refreshes wallet state
+   - Lists assets and transfers
+   - Creates watchers for incomplete transfers
+   - Releases wallet lock
+4. Job completes, wallet worker processes watchers
 
-### Worker (`workers/`)
+**Database**:
+- Job in `refresh_jobs` table
+- Watcher entries created for incomplete transfers
 
-- **`refresh_worker.py`**: Main loop that polls PostgreSQL for jobs (with parallel processing)
-- **`processors/job_processor.py`**: Routes jobs to appropriate handler
-- **`processors/unified_handler.py`**: Unified wallet handler - processes all assets and transfers
-- **`processors/transfer_watcher.py`**: Unified transfer watcher - watches transfers until completion
-- **`api/client.py`**: HTTP client for calling FastAPI endpoints
+## Process Architecture
+
+### Orchestrator (`refresh_worker.py`)
+- **Single process** that monitors the job queue
+- Polls PostgreSQL every `POLL_INTERVAL` seconds
+- Identifies wallets with:
+  - Pending jobs OR
+  - Active watchers
+- Spawns one wallet worker process per wallet (up to `MAX_WALLET_PROCESSES`)
+- Monitors spawned processes and cleans up dead ones
+- On startup, recovers active watchers by creating pending jobs
+
+### Wallet Worker (`wallet_worker.py`)
+- **Dedicated process per wallet**
+- Processes jobs and watchers sequentially for its assigned wallet
+- Main loop:
+  1. Dequeue and process pending jobs (one at a time)
+  2. Process active watchers (one at a time)
+  3. Sleep `WALLET_WORKER_POLL_INTERVAL` seconds
+  4. Terminates after `WALLET_WORKER_IDLE_TIMEOUT` seconds of no work
+
+### Job Processor (`job_processor.py`)
+- Routes jobs to appropriate handlers
+- Special handling for `invoice_created` without `asset_id`: creates watcher with 3 min expiration
+- All other jobs: calls `process_wallet_unified()`
+
+### Unified Handler (`unified_handler.py`)
+- Processes wallet refresh, lists assets, lists transfers
+- Creates watchers for incomplete transfers
+- Uses wallet lock to prevent concurrent refreshes
+
+### Transfer Watcher (`transfer_watcher.py`)
+- Monitors individual transfers until completion
+- Refreshes wallet every `REFRESH_INTERVAL` seconds (with lock)
+- Checks for watcher expiration (for invoice_created without asset_id)
+- Stops when transfer completes, fails, or expires
+
+## Wallet Locking
+
+**When locks are acquired:**
+1. **During `process_wallet_unified()`**: Before refreshing wallet (line 81 in unified_handler.py)
+2. **During `watch_transfer()`**: Before each wallet refresh (line 202 in transfer_watcher.py)
+
+**Lock behavior:**
+- Lock TTL: 30 seconds (default)
+- If lock acquisition fails, operation is skipped (logged as debug/warning)
+- Locks auto-expire and are cleaned up before each acquisition attempt
+- Prevents concurrent refreshes of the same wallet
+
+**Lock conflicts:**
+- If a job tries to refresh while a watcher is refreshing → job skips refresh
+- If multiple watchers try to refresh simultaneously → only one succeeds, others skip
+- If a watcher tries to refresh while a job is processing → watcher skips refresh
 
 ## Database Schema
 
 ### `refresh_jobs`
-- Job queue with status tracking (`pending`, `processing`, `completed`, `failed`)
-- Stores wallet credentials, job metadata, retry info
+- `job_id`: UUID (deterministic from xpub_van + trigger)
+- `xpub_van`, `xpub_col`, `master_fingerprint`: Wallet credentials
+- `trigger`: What triggered the job (sync, asset_sent, invoice_created, etc.)
+- `recipient_id`: Optional (for invoice_created jobs)
+- `asset_id`: Optional (for invoice_created jobs)
+- `status`: pending, processing, completed, failed
+- `created_at`, `processed_at`: Timestamps
 
 ### `refresh_watchers`
-- Active invoice watchers
-- Tracks `recipient_id`, status, refresh count, expiration
+- `xpub_van`, `xpub_col`, `master_fingerprint`: Wallet credentials
+- `recipient_id`: Transfer identifier (required)
+- `asset_id`: Optional asset ID
+- `status`: watching, settled, failed, expired
+- `expires_at`: Watcher expiration timestamp
+- `refresh_count`: Number of refreshes performed
 - Unique constraint on `(xpub_van, recipient_id)`
 
 ### `wallet_locks`
-- Prevents concurrent refreshes of same wallet
-- Auto-expires after TTL (30 seconds)
+- `xpub_van`: Wallet identifier (primary key)
+- `locked_at`: When lock was acquired
+- `expires_at`: When lock expires (TTL: 30 seconds)
+- Auto-expires and cleaned up before each acquisition
 
 ## Configuration
 
 Key settings in `.env`:
 
 ```bash
-REFRESH_INTERVAL=100      # Seconds between invoice refresh checks
-MAX_REFRESH_RETRIES=10    # Max retries for asset send refresh
-RETRY_DELAY_BASE=5        # Base delay for exponential backoff (seconds)
-POLL_INTERVAL=1           # Seconds between queue polls
-WATCHER_TTL=86400        # Watcher expiration (24 hours)
+# Worker Configuration
+REFRESH_INTERVAL=30           # Seconds between wallet refreshes in watchers
+MAX_REFRESH_RETRIES=10        # Max retries for failed refreshes
+RETRY_DELAY_BASE=5            # Base delay for exponential backoff (seconds)
+POLL_INTERVAL=1               # Seconds between queue polls (orchestrator)
+WATCHER_TTL=86400            # Default watcher expiration (24 hours)
+
+# Wallet Worker Configuration
+WALLET_WORKER_IDLE_TIMEOUT=60 # Seconds before terminating idle process
+WALLET_WORKER_POLL_INTERVAL=5 # Seconds between work checks in wallet worker
+MAX_WALLET_PROCESSES=50       # Maximum concurrent wallet worker processes
+
+# API Configuration
+API_URL=http://localhost:8000 # FastAPI service URL
+HTTP_TIMEOUT=60               # HTTP request timeout (seconds)
+
+# PostgreSQL Configuration
+POSTGRES_URL=postgresql://... # Database connection string
+POSTGRES_MIN_CONNECTIONS=2    # Minimum connection pool size
+POSTGRES_MAX_CONNECTIONS=10   # Maximum connection pool size
 ```
 
 ## Recovery
 
-On application startup:
-1. Database schema initializes automatically
-2. Active watchers are recovered from `refresh_watchers` table
-3. Refresh jobs are re-enqueued for active watchers
-4. Workers resume watching invoices seamlessly
+On orchestrator startup:
+1. Calls `recover_active_watchers()` which:
+   - Finds all active watchers in database
+   - Creates pending jobs for wallets with active watchers
+   - Ensures watchers resume after restart
+2. Orchestrator then spawns wallet worker processes for wallets with pending jobs or active watchers
 
 This ensures continuity after restarts or crashes.
 
@@ -114,29 +260,39 @@ This ensures continuity after restarts or crashes.
 
 ```
 1. API enqueues job → status: 'pending'
-2. Worker dequeues job → status: 'processing'
-3. Worker processes job:
-   - Invoice watcher: runs until transfer completes
-   - Asset send: refreshes with retry logic
-4. Job completes → status: 'completed' or 'failed'
+2. Orchestrator detects wallet with pending job
+3. Orchestrator spawns wallet worker process (if not already running)
+4. Wallet worker dequeues job → status: 'processing'
+5. Wallet worker processes job:
+   - invoice_created (no asset_id): Creates watcher with 3 min expiration
+   - All other jobs: Calls process_wallet_unified() → creates watchers for incomplete transfers
+6. Job completes → status: 'completed' or 'failed'
+7. Wallet worker processes active watchers
+8. Wallet worker terminates after idle timeout
 ```
 
 ## Monitoring
 
-Check watcher status:
+Check system status:
 ```bash
-# Active watchers
-SELECT * FROM refresh_watchers WHERE status='watching';
+# Active wallet processes
+SELECT COUNT(*) FROM wallet_locks;
 
-# Job queue
+# Active watchers
+SELECT COUNT(*) FROM refresh_watchers WHERE status='watching';
+
+# Job queue status
 SELECT status, COUNT(*) FROM refresh_jobs GROUP BY status;
+
+# Pending jobs by wallet
+SELECT xpub_van, COUNT(*) FROM refresh_jobs WHERE status='pending' GROUP BY xpub_van;
 ```
 
 ## Error Handling
 
 - **Queue failures**: Logged but don't fail API requests
-- **Refresh failures**: Retried with exponential backoff
+- **Refresh failures**: Retried with exponential backoff (up to MAX_RETRIES)
 - **Watcher errors**: Logged, watcher continues until terminal state
-- **Lock conflicts**: Worker skips refresh if wallet is locked
-
-
+- **Lock conflicts**: Operation skipped, logged as debug/warning
+- **Process failures**: Orchestrator detects and respawns wallet worker
+- **Process limit reached**: New wallets skipped until processes free up

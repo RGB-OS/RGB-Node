@@ -128,7 +128,6 @@ def main() -> None:
         while not get_shutdown_flag():
             has_work = False
             
-            # Process pending jobs for this wallet (sequentially)
             while True:
                 if get_shutdown_flag():
                     break
@@ -147,27 +146,23 @@ def main() -> None:
                 )
                 
                 try:
-                    # process_job handles marking job as completed/failed internally
                     process_job(job, get_shutdown_flag)
                     logger.info(
                         f"[WalletWorker] Wallet {xpub_van[:5]}...{xpub_van[-5:]} - "
                         f"Job {job_id} completed"
                     )
                 except Exception as e:
-                    # process_job handles marking job as failed internally, but log error here
                     logger.error(
                         f"[WalletWorker] Wallet {xpub_van[:5]}...{xpub_van[-5:]} - "
                         f"Error processing job {job_id}: {e}", exc_info=True
                     )
             
-            # Process watchers for this wallet (sequentially)
             if not get_shutdown_flag():
                 processed = process_watchers_for_wallet(xpub_van)
                 if processed > 0:
                     has_work = True
                     last_work_time = time.time()
             
-            # Check idle timeout
             if not has_work:
                 idle_time = time.time() - last_work_time
                 if idle_time >= WALLET_WORKER_IDLE_TIMEOUT:
@@ -177,7 +172,6 @@ def main() -> None:
                     )
                     break
             
-            # Sleep before next iteration
             if not get_shutdown_flag():
                 time.sleep(WALLET_WORKER_POLL_INTERVAL)
     

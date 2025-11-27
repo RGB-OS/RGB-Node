@@ -20,7 +20,7 @@ load_dotenv(override=True)
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Import worker modules
-from workers.config import API_URL, POLL_INTERVAL, LOG_LEVEL
+from workers.config import API_URL, POLL_INTERVAL, LOG_LEVEL, MAX_WALLET_PROCESSES
 from workers.signals import register_signal_handlers, get_shutdown_flag
 from workers.api.client import get_api_client
 from src.database.connection import get_db_connection
@@ -60,9 +60,6 @@ def spawn_wallet_worker(xpub_van: str) -> Optional[Popen]:
     try:
         process = subprocess.Popen(
             [python_executable, script_path, '--wallet', xpub_van],
-            # Don't pipe stdout/stderr so logs are visible in console
-            # stdout=subprocess.PIPE,
-            # stderr=subprocess.PIPE,
             text=True
         )
         
@@ -85,7 +82,7 @@ def cleanup_dead_processes() -> None:
     
     dead_wallets = []
     for xpub_van, process in active_processes.items():
-        if process.poll() is not None:  # Process has terminated
+        if process.poll() is not None:
             dead_wallets.append(xpub_van)
             logger.debug(
                 f"[RefreshWorker] Wallet worker for {xpub_van[:5]}...{xpub_van[-5:]} "
@@ -178,17 +175,14 @@ def main() -> None:
     try:
         while not get_shutdown_flag():
             try:
-                # Clean up dead processes periodically
                 current_time = time.time()
                 if current_time - last_cleanup >= cleanup_interval:
                     cleanup_dead_processes()
                     last_cleanup = current_time
                 
-                # Find wallets that need processing (pending jobs OR active watchers)
                 try:
                     with get_db_connection() as conn:
                         with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                            # Get distinct wallets that have pending jobs
                             cur.execute("""
                                 SELECT DISTINCT xpub_van
                                 FROM refresh_jobs
@@ -197,7 +191,6 @@ def main() -> None:
                             
                             wallets_with_pending_jobs = [row['xpub_van'] for row in cur.fetchall()]
                             
-                            # Get distinct wallets that have active watchers
                             cur.execute("""
                                 SELECT DISTINCT xpub_van
                                 FROM refresh_watchers
@@ -211,31 +204,37 @@ def main() -> None:
                             wallets_needing_processing = set(wallets_with_pending_jobs) | set(wallets_with_active_watchers)
                             
                             for xpub_van in wallets_needing_processing:
-                                # Check if process already exists for this wallet
                                 if xpub_van in active_processes:
                                     process = active_processes[xpub_van]
-                                    if process.poll() is None:  # Process still running
+                                    if process.poll() is None:
                                         continue
                                     else:
-                                        # Process died, remove it
                                         logger.warning(
                                             f"[RefreshWorker] Wallet worker for {xpub_van[:5]}...{xpub_van[-5:]} "
                                             f"died, will respawn"
                                         )
                                         active_processes.pop(xpub_van, None)
                                 
-                                # Spawn new wallet worker process
+                                running_count = len([p for p in active_processes.values() if p.poll() is None])
+                                
+                                if running_count >= MAX_WALLET_PROCESSES:
+                                    logger.warning(
+                                        f"[RefreshWorker] Maximum process limit reached ({MAX_WALLET_PROCESSES}), "
+                                        f"skipping wallet {xpub_van[:5]}...{xpub_van[-5:]}"
+                                    )
+                                    continue
+                                
                                 process = spawn_wallet_worker(xpub_van)
                                 if process:
                                     active_processes[xpub_van] = process
+                                    running_count = len([p for p in active_processes.values() if p.poll() is None])
                                     logger.info(
                                         f"[RefreshWorker] Wallet worker spawned for wallet {xpub_van[:5]}...{xpub_van[-5:]} "
-                                        f"(active processes: {len(active_processes)})"
+                                        f"(active processes: {running_count}/{MAX_WALLET_PROCESSES})"
                                     )
                 except Exception as e:
                     logger.error(f"Error checking for wallets with pending jobs: {e}")
                 else:
-                    # No jobs available, log heartbeat
                     if current_time - last_heartbeat >= heartbeat_interval:
                         logger.debug(
                             f"[RefreshWorker] Waiting for jobs... "
@@ -243,7 +242,6 @@ def main() -> None:
                         )
                         last_heartbeat = current_time
                 
-                # Small sleep to prevent tight loop
                 time.sleep(POLL_INTERVAL)
                 
             except KeyboardInterrupt:
