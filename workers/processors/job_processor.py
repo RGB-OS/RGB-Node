@@ -63,7 +63,7 @@ def process_job(job: Dict[str, Any], shutdown_flag: callable) -> None:
     try:
         # Special handling for invoice_created without asset_id
         if trigger == "invoice_created" and recipient_id and not asset_id:
-            # Just create watcher with 15 min expiration (900 seconds)
+            # Create watcher with 3 min expiration (180 seconds)
             xpub_van = job.get('xpub_van')
             xpub_col = job.get('xpub_col')
             master_fingerprint = job.get('master_fingerprint')
@@ -75,17 +75,16 @@ def process_job(job: Dict[str, Any], shutdown_flag: callable) -> None:
                     f"[JobProcessor] Watcher already exists for {xpub_van}:{recipient_id}, skipping creation"
                 )
             else:
-                # Create watcher with 15 min expiration
                 create_watcher(
                     xpub_van=xpub_van,
                     xpub_col=xpub_col,
                     master_fingerprint=master_fingerprint,
                     recipient_id=recipient_id,
                     asset_id=None,
-                    expiration_seconds=180  # 15 minutes
+                    expiration_seconds=180  # 3 minutes
                 )
                 logger.info(
-                    f"[JobProcessor] Created watcher for invoice {recipient_id} (15 min expiration)"
+                    f"[JobProcessor] Created watcher for invoice {recipient_id} (3 min expiration)"
                 )
             mark_job_completed(job_id)
         else:

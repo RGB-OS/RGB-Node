@@ -43,10 +43,6 @@ def create_watcher(
         # Store as UTC datetime to avoid timezone issues
         expires_at_dt = datetime.fromtimestamp(expires_at, tz=timezone.utc)
         expires_at_str = expires_at_dt.strftime('%Y-%m-%d %H:%M:%S')
-        logger.info(
-            f"[Watcher] Storing expires_at as: {expires_at_str} (UTC), "
-            f"Unix timestamp: {expires_at}"
-        )
         
         with get_db_connection() as conn:
             with conn.cursor() as cur:

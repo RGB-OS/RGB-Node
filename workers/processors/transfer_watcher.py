@@ -9,6 +9,7 @@ import logging
 from typing import Dict, Any, Optional
 from workers.config import REFRESH_INTERVAL
 from workers.api.client import get_api_client
+from workers.processors.transfer_utils import is_transfer_completed, is_transfer_expired
 from src.queue import (
     create_watcher,
     update_watcher_status,
@@ -20,51 +21,6 @@ from src.queue import (
 )
 
 logger = logging.getLogger(__name__)
-
-
-def _is_transfer_completed(transfer: Dict[str, Any]) -> bool:
-    """Check if transfer is in terminal state."""
-    status = transfer.get('status')
-    
-    # Handle enum object (if not serialized)
-    if hasattr(status, 'name'):
-        status = status.name
-    # Handle enum value (integer) - unlikely but possible
-    elif isinstance(status, int):
-        # TransferStatus: SETTLED=2, FAILED=3
-        return status in [2, 3]
-    
-    # Handle string (most common from JSON serialization)
-    if isinstance(status, str):
-        return status.upper() in ['SETTLED', 'FAILED']
-    
-    return False
-
-
-def _is_transfer_expired(transfer: Dict[str, Any]) -> bool:
-    """Check if transfer has expired."""
-    expiration = transfer.get('expiration')
-    if not expiration:
-        return False
-    
-    now = int(time.time())
-    kind = transfer.get('kind')
-    
-    # Handle enum object (if not serialized)
-    if hasattr(kind, 'name'):
-        kind = kind.name
-    # Handle enum value (integer)
-    elif isinstance(kind, int):
-        # TransferKind: RECEIVE_BLIND = 1
-        if kind != 1:
-            return False
-        kind = 'RECEIVE_BLIND'
-    
-    # Only RECEIVE_BLIND transfers can expire
-    if isinstance(kind, str) and kind.upper() == 'RECEIVE_BLIND' and expiration < now:
-        return True
-    
-    return False
 
 
 def _get_transfer_identifier(transfer: Dict[str, Any], job: Dict[str, Any]) -> Optional[str]:
@@ -173,10 +129,10 @@ def watch_transfer(
                                     f"Watcher expires in {time_until_expiry} seconds (expires_at={expires_at}, current={current_time})"
                                 )
                                 if current_time >= expires_at:
-                                    # Watcher expired after 15 min, trigger sync job
+                                    # Watcher expired after 3 min, trigger sync job
                                     logger.info(
                                         f"[TransferWatcher] Wallet {xpub_van[:5]}...{xpub_van[-5:]} - "
-                                        f"Watcher for {recipient_id} expired (15 min), triggering sync job"
+                                        f"Watcher for {recipient_id} expired (3 min), triggering sync job"
                                     )
                                     try:
                                         enqueue_refresh_job(
@@ -208,13 +164,9 @@ def watch_transfer(
                 else:
                     status = transfer.get('status')
                     kind = transfer.get('kind')
-                    logger.info(
-                        f"[TransferWatcher] Wallet {xpub_van[:5]}...{xpub_van[-5:]} - "
-                        f"Transfer {recipient_id} status: {status}, kind: {kind}"
-                    )
                     
                     # Check for terminal states
-                    if _is_transfer_completed(transfer):
+                    if is_transfer_completed(transfer):
                         # Normalize status to string for storage
                         if hasattr(status, 'name'):
                             final_status = status.name.lower()
@@ -232,7 +184,7 @@ def watch_transfer(
                         return
                     
                     # Check for expiration
-                    if _is_transfer_expired(transfer):
+                    if is_transfer_expired(transfer):
                         update_watcher_status(xpub_van, recipient_id, 'expired', refresh_count)
                         stop_watcher(xpub_van, recipient_id)
                         logger.info(
@@ -249,10 +201,6 @@ def watch_transfer(
                             refresh_count += 1
                             update_watcher_status(
                                 xpub_van, recipient_id, "watching", refresh_count
-                            )
-                            logger.info(
-                                f"[TransferWatcher] Wallet {xpub_van[:5]}...{xpub_van[-5:]} - "
-                                f"Refreshed wallet for transfer {recipient_id} (count: {refresh_count})"
                             )
                         finally:
                             release_wallet_lock(xpub_van)

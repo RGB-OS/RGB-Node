@@ -7,8 +7,9 @@ One job per wallet - handles everything in a single pass.
 import time
 import logging
 from typing import Dict, Any, List, Optional
-from workers.config import MAX_RETRIES, RETRY_DELAY_BASE, REFRESH_INTERVAL
+from workers.config import MAX_RETRIES, RETRY_DELAY_BASE
 from workers.api.client import get_api_client
+from workers.processors.transfer_utils import is_transfer_completed, is_transfer_expired
 from src.queue import (
     acquire_wallet_lock,
     release_wallet_lock,
@@ -17,67 +18,6 @@ from src.queue import (
 )
 
 logger = logging.getLogger(__name__)
-
-
-def _is_transfer_completed(transfer: Dict[str, Any]) -> bool:
-    """
-    Check if a transfer is in a terminal state.
-    
-    Args:
-        transfer: Transfer dictionary
-        
-    Returns:
-        True if transfer is completed (settled or failed), False otherwise
-    """
-    status = transfer.get('status')
-    
-    # Handle enum object (if not serialized)
-    if hasattr(status, 'name'):
-        status = status.name
-    # Handle enum value (integer) - unlikely but possible
-    elif isinstance(status, int):
-        # TransferStatus: SETTLED=2, FAILED=3
-        return status in [2, 3]
-    
-    # Handle string (most common from JSON serialization)
-    if isinstance(status, str):
-        return status.upper() in ['SETTLED', 'FAILED']
-    
-    return False
-
-
-def _is_transfer_expired(transfer: Dict[str, Any]) -> bool:
-    """
-    Check if a transfer has expired.
-    
-    Args:
-        transfer: Transfer dictionary
-        
-    Returns:
-        True if transfer is expired, False otherwise
-    """
-    expiration = transfer.get('expiration')
-    if not expiration:
-        return False
-    
-    now = int(time.time())
-    kind = transfer.get('kind')
-    
-    # Handle enum object (if not serialized)
-    if hasattr(kind, 'name'):
-        kind = kind.name
-    # Handle enum value (integer)
-    elif isinstance(kind, int):
-        # TransferKind: RECEIVE_BLIND = 1
-        if kind != 1:
-            return False
-        kind = 'RECEIVE_BLIND'
-    
-    # Only RECEIVE_BLIND transfers can expire
-    if isinstance(kind, str) and kind.upper() == 'RECEIVE_BLIND' and expiration < now:
-        return True
-    
-    return False
 
 
 def _get_transfer_identifier(transfer: Dict[str, Any]) -> Optional[str]:
@@ -106,18 +46,15 @@ def _should_watch_transfer(transfer: Dict[str, Any]) -> bool:
         True if transfer should be watched, False otherwise
     """
     # Don't watch completed transfers
-    if _is_transfer_completed(transfer):
+    if is_transfer_completed(transfer):
         return False
     
     # Don't watch expired transfers (they will be handled separately)
-    if _is_transfer_expired(transfer):
+    if is_transfer_expired(transfer):
         return False
     
     # Watch all non-terminal transfers
     return True
-
-
-# Note: Watchers are not created in unified flow - they should be created separately when needed
 
 
 def process_wallet_unified(job: Dict[str, Any], shutdown_flag: callable) -> None:
@@ -248,12 +185,11 @@ def process_wallet_unified(job: Dict[str, Any], shutdown_flag: callable) -> None
                                     f"[UnifiedHandler] Wallet {xpub_van[:5]}...{xpub_van[-5:]} - "
                                     f"Transfer has no recipient_id, cannot create watcher"
                                 )
-                        elif _is_transfer_expired(transfer):
+                        elif is_transfer_expired(transfer):
                             logger.debug(
                                 f"[UnifiedHandler] Wallet {xpub_van[:5]}...{xpub_van[-5:]} - "
-                                f"Transfer recipient_id={recipient_id} is expired"
+                                f"Transfer recipient_id={recipient_id} is expired, skipping"
                             )
-                            # TODO: Handle expired transfers (mark as failed, cleanup, etc.)
                         else:
                             logger.debug(
                                 f"[UnifiedHandler] Wallet {xpub_van[:5]}...{xpub_van[-5:]} - "
