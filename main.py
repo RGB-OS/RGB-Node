@@ -9,6 +9,14 @@ import rgb_lib
 import os
 import logging
 
+
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
+logging.basicConfig(
+    level=getattr(logging, LOG_LEVEL, logging.INFO),
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="ThunderLink RGB Wallet API",
@@ -34,7 +42,6 @@ async def startup_event():
         init_database()
         logger.info("Database schema initialized")
         
-        # Recover active watchers if enabled
         if os.getenv("ENABLE_RECOVERY", "true").lower() == "true":
             logger.info("Recovering active watchers...")
             recovered = recover_active_watchers()
@@ -43,6 +50,6 @@ async def startup_event():
             logger.info("Recovery disabled (ENABLE_RECOVERY=false)")
     except Exception as e:
         logger.error(f"Startup error: {e}", exc_info=True)
-        # Don't fail startup if recovery fails, but log it
+      
 
 app.include_router(router)

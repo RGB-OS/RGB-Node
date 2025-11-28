@@ -26,6 +26,8 @@ from workers.config import (
 from workers.signals import register_signal_handlers, get_shutdown_flag
 from workers.processors import process_job
 from workers.processors.transfer_watcher import watch_transfer
+from workers.models import Watcher
+from workers.utils import format_wallet_id
 from src.queue import (
     dequeue_job_for_wallet,
     get_active_watchers_for_wallet,
@@ -54,49 +56,46 @@ def process_watchers_for_wallet(xpub_van: str) -> int:
     if not watchers:
         return 0
     
+    wallet_id = format_wallet_id(xpub_van)
     logger.info(
-        f"[WalletWorker] Wallet {xpub_van[:5]}...{xpub_van[-5:]} - "
+        f"[WalletWorker] Wallet {wallet_id} - "
         f"Found {len(watchers)} active watcher(s)"
     )
     
     processed = 0
-    for watcher in watchers:
+    for watcher_dict in watchers:
         if get_shutdown_flag():
             break
         
-        recipient_id = watcher.get('recipient_id')
-        if not recipient_id:
-            logger.warning(f"Watcher missing recipient_id: {watcher}")
+        try:
+            watcher = Watcher.from_dict(watcher_dict)
+        except Exception as e:
+            logger.warning(f"Invalid watcher data: {watcher_dict}, error: {e}")
             continue
         
-        # Create job dict for watcher
-        watcher_job = {
-            'xpub_van': watcher['xpub_van'],
-            'xpub_col': watcher['xpub_col'],
-            'master_fingerprint': watcher['master_fingerprint'],
-            'recipient_id': recipient_id,
-            'asset_id': watcher.get('asset_id'),
-        }
+        if not watcher.recipient_id:
+            logger.warning(f"Watcher missing recipient_id: {watcher_dict}")
+            continue
         
         try:
             logger.info(
-                f"[WalletWorker] Wallet {xpub_van[:5]}...{xpub_van[-5:]} - "
-                f"Processing watcher for transfer {recipient_id}"
+                f"[WalletWorker] Wallet {wallet_id} - "
+                f"Processing watcher for transfer {watcher.recipient_id}"
             )
             
-            # Process watcher (runs until transfer completes or expires)
+            watcher_job = watcher.get_credentials().to_dict()
             watch_transfer(
                 job=watcher_job,
-                recipient_id=recipient_id,
-                asset_id=watcher.get('asset_id'),
+                recipient_id=watcher.recipient_id,
+                asset_id=watcher.asset_id,
                 shutdown_flag=get_shutdown_flag
             )
             
             processed += 1
         except Exception as e:
             logger.error(
-                f"[WalletWorker] Wallet {xpub_van[:5]}...{xpub_van[-5:]} - "
-                f"Error processing watcher {recipient_id}: {e}", exc_info=True
+                f"[WalletWorker] Wallet {wallet_id} - "
+                f"Error processing watcher {watcher.recipient_id}: {e}", exc_info=True
             )
     
     return processed
@@ -114,8 +113,9 @@ def main() -> None:
     args = parser.parse_args()
     
     xpub_van = args.wallet
+    wallet_id = format_wallet_id(xpub_van)
     
-    logger.info(f"Starting wallet worker for {xpub_van[:5]}...{xpub_van[-5:]}")
+    logger.info(f"Starting wallet worker for {wallet_id}")
     logger.info(f"Idle timeout: {WALLET_WORKER_IDLE_TIMEOUT}s")
     logger.info(f"Poll interval: {WALLET_WORKER_POLL_INTERVAL}s")
     
@@ -141,19 +141,19 @@ def main() -> None:
                 
                 job_id = job.get('job_id', 'unknown')
                 logger.info(
-                    f"[WalletWorker] Wallet {xpub_van[:5]}...{xpub_van[-5:]} - "
+                    f"[WalletWorker] Wallet {wallet_id} - "
                     f"Processing job {job_id}"
                 )
                 
                 try:
                     process_job(job, get_shutdown_flag)
                     logger.info(
-                        f"[WalletWorker] Wallet {xpub_van[:5]}...{xpub_van[-5:]} - "
+                        f"[WalletWorker] Wallet {wallet_id} - "
                         f"Job {job_id} completed"
                     )
                 except Exception as e:
                     logger.error(
-                        f"[WalletWorker] Wallet {xpub_van[:5]}...{xpub_van[-5:]} - "
+                        f"[WalletWorker] Wallet {wallet_id} - "
                         f"Error processing job {job_id}: {e}", exc_info=True
                     )
             
@@ -167,7 +167,7 @@ def main() -> None:
                 idle_time = time.time() - last_work_time
                 if idle_time >= WALLET_WORKER_IDLE_TIMEOUT:
                     logger.info(
-                        f"[WalletWorker] Wallet {xpub_van[:5]}...{xpub_van[-5:]} - "
+                        f"[WalletWorker] Wallet {wallet_id} - "
                         f"No work for {idle_time:.0f}s, terminating"
                     )
                     break
@@ -176,14 +176,14 @@ def main() -> None:
                 time.sleep(WALLET_WORKER_POLL_INTERVAL)
     
     except KeyboardInterrupt:
-        logger.info(f"[WalletWorker] Wallet {xpub_van[:5]}...{xpub_van[-5:]} - Keyboard interrupt received")
+        logger.info(f"[WalletWorker] Wallet {wallet_id} - Keyboard interrupt received")
     except Exception as e:
         logger.error(
-            f"[WalletWorker] Wallet {xpub_van[:5]}...{xpub_van[-5:]} - "
+            f"[WalletWorker] Wallet {wallet_id} - "
             f"Unexpected error: {e}", exc_info=True
         )
     finally:
-        logger.info(f"[WalletWorker] Wallet {xpub_van[:5]}...{xpub_van[-5:]} - Worker stopped")
+        logger.info(f"[WalletWorker] Wallet {wallet_id} - Worker stopped")
 
 
 if __name__ == "__main__":

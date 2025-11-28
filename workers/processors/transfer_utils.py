@@ -4,7 +4,34 @@ Transfer utility functions.
 Shared functions for checking transfer status across different processors.
 """
 import time
-from typing import Dict, Any
+from typing import Dict, Any, Optional
+
+
+def get_transfer_identifier(transfer: Optional[Dict[str, Any]] = None, job: Optional[Dict[str, Any]] = None) -> Optional[str]:
+    """
+    Get transfer identifier from transfer or job.
+    
+    Uses recipient_id (required for watchers).
+    Prioritizes transfer.recipient_id, falls back to job.recipient_id.
+    
+    Args:
+        transfer: Transfer dictionary (may be None)
+        job: Job dictionary (may be None)
+    
+    Returns:
+        recipient_id if available, None otherwise
+    """
+    if transfer:
+        recipient_id = transfer.get('recipient_id')
+        if recipient_id:
+            return recipient_id
+    
+    if job:
+        recipient_id = job.get('recipient_id')
+        if recipient_id:
+            return recipient_id
+    
+    return None
 
 
 def is_transfer_completed(transfer: Dict[str, Any]) -> bool:

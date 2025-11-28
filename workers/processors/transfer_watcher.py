@@ -1,15 +1,17 @@
 """
 Unified transfer watcher.
 
-Watches transfers (send, receive, expired) until they're settled, failed, or expired.
-Single unified code path for all transfer types.
+Watches transfers until they're settled, failed, or expired.
+Refactored into classes for better structure and maintainability.
 """
 import time
 import logging
-from typing import Dict, Any, Optional
-from workers.config import REFRESH_INTERVAL
+from typing import Optional, Dict, Any
+from workers.config import REFRESH_INTERVAL, WALLET_LOCK_TTL
 from workers.api.client import get_api_client
 from workers.processors.transfer_utils import is_transfer_completed, is_transfer_expired
+from workers.utils import format_wallet_id, normalize_transfer_status
+from workers.models import WalletCredentials, Watcher
 from src.queue import (
     create_watcher,
     update_watcher_status,
@@ -23,34 +25,234 @@ from src.queue import (
 logger = logging.getLogger(__name__)
 
 
-def _get_transfer_identifier(transfer: Dict[str, Any], job: Dict[str, Any]) -> Optional[str]:
-    """
-    Get transfer identifier from transfer or job.
+class WatcherLifecycle:
+    """Manages watcher lifecycle (creation, updates, stopping)."""
     
-    Uses recipient_id (required for watchers).
-    
-    Args:
-        transfer: Transfer dictionary (may be None)
-        job: Job dictionary
+    def __init__(self, credentials: WalletCredentials, recipient_id: str, asset_id: Optional[str]):
+        """
+        Initialize watcher lifecycle manager.
         
-    Returns:
-        recipient_id if available, None otherwise
-    """
-    if transfer:
-        recipient_id = transfer.get('recipient_id')
-        if recipient_id:
-            return recipient_id
+        Args:
+            credentials: Wallet credentials
+            recipient_id: Transfer recipient ID
+            asset_id: Optional asset ID
+        """
+        self.credentials = credentials
+        self.recipient_id = recipient_id
+        self.asset_id = asset_id
+        self.wallet_id = format_wallet_id(credentials.xpub_van)
     
-    # Fallback to job data
-    recipient_id = job.get('recipient_id')
-    if recipient_id:
-        return recipient_id
+    def ensure_watcher_exists(self) -> None:
+        """Ensure watcher entry exists in database."""
+        existing_watcher = get_watcher_status(self.credentials.xpub_van, self.recipient_id)
+        
+        if existing_watcher:
+            logger.debug(
+                f"[TransferWatcher] Wallet {self.wallet_id} - Watcher already exists "
+                f"for transfer {self.recipient_id}, preserving expiration"
+            )
+            return
+        
+        try:
+            create_watcher(
+                xpub_van=self.credentials.xpub_van,
+                xpub_col=self.credentials.xpub_col,
+                master_fingerprint=self.credentials.master_fingerprint,
+                recipient_id=self.recipient_id,
+                asset_id=self.asset_id
+            )
+            logger.info(
+                f"[TransferWatcher] Wallet {self.wallet_id} - Created watcher entry "
+                f"for transfer {self.recipient_id}"
+            )
+        except Exception as e:
+            logger.warning(
+                f"[TransferWatcher] Wallet {self.wallet_id} - "
+                f"Failed to create watcher entry: {e}"
+            )
     
-    return None
+    def update_status(self, status: str, refresh_count: int) -> None:
+        """Update watcher status in database."""
+        update_watcher_status(
+            self.credentials.xpub_van,
+            self.recipient_id,
+            status,
+            refresh_count
+        )
+    
+    def stop(self) -> None:
+        """Stop watcher (mark as stopped in database)."""
+        stop_watcher(self.credentials.xpub_van, self.recipient_id)
+
+
+class TransferMonitor:
+    """Monitors transfer status until completion or expiration."""
+    
+    def __init__(self, credentials: WalletCredentials, recipient_id: str, asset_id: Optional[str]):
+        """
+        Initialize transfer monitor.
+        
+        Args:
+            credentials: Wallet credentials
+            recipient_id: Transfer recipient ID
+            asset_id: Optional asset ID
+        """
+        self.credentials = credentials
+        self.recipient_id = recipient_id
+        self.asset_id = asset_id
+        self.wallet_id = format_wallet_id(credentials.xpub_van)
+        self.api_client = get_api_client()
+    
+    def get_transfer_status(self) -> Optional[dict]:
+        """
+        Get current transfer status from API.
+        
+        Returns:
+            Transfer dictionary or None if not found
+        """
+        job_dict = self.credentials.to_dict()
+        job_dict['recipient_id'] = self.recipient_id
+        if self.asset_id:
+            job_dict['asset_id'] = self.asset_id
+        
+        return self.api_client.get_transfer_status(job_dict)
+    
+    def check_completion(self, transfer: dict) -> Optional[str]:
+        """
+        Check if transfer is completed.
+        
+        Args:
+            transfer: Transfer dictionary
+        
+        Returns:
+            Final status string if completed ('settled' or 'failed'), None otherwise
+        """
+        if not is_transfer_completed(transfer):
+            return None
+        
+        status = transfer.get('status')
+        return normalize_transfer_status(status)
+    
+    def check_expiration(self, transfer: dict) -> bool:
+        """
+        Check if transfer has expired.
+        
+        Args:
+            transfer: Transfer dictionary
+        
+        Returns:
+            True if expired, False otherwise
+        """
+        return is_transfer_expired(transfer)
+
+
+class WalletRefresher:
+    """Handles periodic wallet refreshes during transfer watching."""
+    
+    def __init__(self, credentials: WalletCredentials):
+        """
+        Initialize wallet refresher.
+        
+        Args:
+            credentials: Wallet credentials
+        """
+        self.credentials = credentials
+        self.wallet_id = format_wallet_id(credentials.xpub_van)
+        self.api_client = get_api_client()
+    
+    def refresh(self) -> Optional[Dict[str, Any]]:
+        """
+        Refresh wallet state (with lock to prevent concurrent refreshes).
+        
+        Returns:
+            Refresh response dictionary if refresh succeeded, None otherwise
+        """
+        if not acquire_wallet_lock(self.credentials.xpub_van, ttl=WALLET_LOCK_TTL):
+            logger.debug(
+                f"[TransferWatcher] Wallet {self.wallet_id} - "
+                f"Wallet is being refreshed by another worker, skipping this cycle"
+            )
+            return None
+        
+        try:
+            job_dict = self.credentials.to_dict()
+            refresh_response = self.api_client.refresh_wallet(job_dict)
+            return refresh_response
+        except Exception as e:
+            logger.warning(
+                f"[TransferWatcher] Wallet {self.wallet_id} - "
+                f"Refresh failed: {e}"
+            )
+            return None
+        finally:
+            release_wallet_lock(self.credentials.xpub_van)
+
+
+class ExpirationChecker:
+    """Checks watcher expiration (for invoice_created without asset_id)."""
+    
+    def __init__(self, credentials: WalletCredentials, recipient_id: str):
+        """
+        Initialize expiration checker.
+        
+        Args:
+            credentials: Wallet credentials
+            recipient_id: Transfer recipient ID
+        """
+        self.credentials = credentials
+        self.recipient_id = recipient_id
+        self.wallet_id = format_wallet_id(credentials.xpub_van)
+    
+    def check_and_handle_expiration(self) -> bool:
+        """
+        Check if watcher has expired and handle it.
+        
+        Returns:
+            True if watcher expired and was handled, False otherwise
+        """
+        watcher = get_watcher_status(self.credentials.xpub_van, self.recipient_id)
+        if not watcher:
+            return False
+        
+        expires_at = watcher.get('expires_at')
+        if not expires_at or not isinstance(expires_at, int):
+            return False
+        
+        current_time = int(time.time())
+        if current_time < expires_at:
+            time_until_expiry = expires_at - current_time
+            logger.info(
+                f"[TransferWatcher] Wallet {self.wallet_id} - "
+                f"Watcher expires in {time_until_expiry} seconds"
+            )
+            return False
+        
+        logger.info(
+            f"[TransferWatcher] Wallet {self.wallet_id} - "
+            f"Watcher for {self.recipient_id} expired (3 min), triggering sync job"
+        )
+        
+        try:
+            enqueue_refresh_job(
+                xpub_van=self.credentials.xpub_van,
+                xpub_col=self.credentials.xpub_col,
+                master_fingerprint=self.credentials.master_fingerprint,
+                trigger="sync"
+            )
+            logger.info(
+                f"[TransferWatcher] Wallet {self.wallet_id} - "
+                f"Triggered sync job after watcher expiration"
+            )
+        except Exception as e:
+            logger.error(
+                f"[TransferWatcher] Failed to trigger sync job: {e}", exc_info=True
+            )
+        
+        return True
 
 
 def watch_transfer(
-    job: Dict[str, Any],
+    job: dict,
     recipient_id: str,
     asset_id: Optional[str],
     shutdown_flag: callable
@@ -68,157 +270,99 @@ def watch_transfer(
         asset_id: Asset ID (optional)
         shutdown_flag: Callable that returns True if shutdown requested
     """
-    xpub_van = job['xpub_van']
-    refresh_count = 0
+    credentials = WalletCredentials.from_dict(job)
+    wallet_id = format_wallet_id(credentials.xpub_van)
     
-    try:
-        existing_watcher = get_watcher_status(xpub_van, recipient_id)
-        if not existing_watcher:
-            create_watcher(
-                xpub_van=job['xpub_van'],
-                xpub_col=job['xpub_col'],
-                master_fingerprint=job['master_fingerprint'],
-                recipient_id=recipient_id,
-                asset_id=asset_id
-            )
-            logger.info(
-                f"[TransferWatcher] Wallet {xpub_van[:5]}...{xpub_van[-5:]} - Created watcher entry "
-                f"for transfer {recipient_id}"
-            )
-        else:
-            logger.debug(
-                f"[TransferWatcher] Wallet {xpub_van[:5]}...{xpub_van[-5:]} - Watcher already exists "
-                f"for transfer {recipient_id}, preserving expiration"
-            )
-    except Exception as e:
-        logger.warning(
-            f"[TransferWatcher] Wallet {xpub_van[:5]}...{xpub_van[-5:]} - Failed to create watcher entry: {e}"
-        )
+    lifecycle = WatcherLifecycle(credentials, recipient_id, asset_id)
+    monitor = TransferMonitor(credentials, recipient_id, asset_id)
+    refresher = WalletRefresher(credentials)
+    expiration_checker = ExpirationChecker(credentials, recipient_id)
+    
+    lifecycle.ensure_watcher_exists()
     
     logger.info(
-        f"[TransferWatcher] Wallet {xpub_van[:5]}...{xpub_van[-5:]} - Started watching "
+        f"[TransferWatcher] Wallet {wallet_id} - Started watching "
         f"transfer {recipient_id}, asset_id={asset_id}"
     )
     
-    api_client = get_api_client()
-    
-    transfer_job = job.copy()
-    transfer_job['recipient_id'] = recipient_id
-    if asset_id:
-        transfer_job['asset_id'] = asset_id
+    refresh_count = 0
     
     try:
         while not shutdown_flag():
             try:
                 if not asset_id:
-                    watcher = get_watcher_status(xpub_van, recipient_id)
-                    if watcher:
-                        expires_at = watcher.get('expires_at')
-                        if expires_at:
-                            # expires_at is already normalized to Unix timestamp
-                            if isinstance(expires_at, int):
-                                current_time = int(time.time())
-                                time_until_expiry = expires_at - current_time
-                                logger.info(
-                                    f"[TransferWatcher] Wallet {xpub_van[:5]}...{xpub_van[-5:]} - "
-                                    f"Watcher expires in {time_until_expiry} seconds (expires_at={expires_at}, current={current_time})"
-                                )
-                                if current_time >= expires_at:
-                                    # Watcher expired after 3 min, trigger sync job
-                                    logger.info(
-                                        f"[TransferWatcher] Wallet {xpub_van[:5]}...{xpub_van[-5:]} - "
-                                        f"Watcher for {recipient_id} expired (3 min), triggering sync job"
-                                    )
-                                    try:
-                                        enqueue_refresh_job(
-                                            xpub_van=job['xpub_van'],
-                                            xpub_col=job['xpub_col'],
-                                            master_fingerprint=job['master_fingerprint'],
-                                            trigger="sync"
-                                        )
-                                        logger.info(
-                                            f"[TransferWatcher] Wallet {xpub_van[:5]}...{xpub_van[-5:]} - "
-                                            f"Triggered sync job after watcher expiration"
-                                        )
-                                    except Exception as e:
-                                        logger.error(
-                                            f"[TransferWatcher] Failed to trigger sync job: {e}", exc_info=True
-                                        )
-                                    update_watcher_status(xpub_van, recipient_id, 'expired', refresh_count)
-                                    stop_watcher(xpub_van, recipient_id)
-                                    return
+                    if expiration_checker.check_and_handle_expiration():
+                        lifecycle.update_status('expired', refresh_count)
+                        lifecycle.stop()
+                        return
                 
-                transfer = api_client.get_transfer_status(transfer_job)
+                transfer = monitor.get_transfer_status()
                 
                 if not transfer:
                     logger.info(
-                        f"[TransferWatcher] Wallet {xpub_van[:5]}...{xpub_van[-5:]} - "
+                        f"[TransferWatcher] Wallet {wallet_id} - "
                         f"Transfer not found for {recipient_id}, continuing..."
                     )
                 else:
-                    status = transfer.get('status')
-                    kind = transfer.get('kind')
-                    
-                    # Check for terminal states
-                    if is_transfer_completed(transfer):
-                        # Normalize status to string for storage
-                        if hasattr(status, 'name'):
-                            final_status = status.name.lower()
-                        elif isinstance(status, int):
-                            # TransferStatus: SETTLED=2, FAILED=3
-                            final_status = 'settled' if status == 2 else 'failed'
-                        else:
-                            final_status = str(status).lower()
-                        update_watcher_status(xpub_van, recipient_id, final_status, refresh_count)
-                        stop_watcher(xpub_van, recipient_id)
+                    final_status = monitor.check_completion(transfer)
+                    if final_status:
+                        lifecycle.update_status(final_status, refresh_count)
+                        lifecycle.stop()
                         logger.info(
-                            f"[TransferWatcher] Wallet {xpub_van[:5]}...{xpub_van[-5:]} - "
-                            f"Stopped watching transfer {recipient_id} - status: {status}"
+                            f"[TransferWatcher] Wallet {wallet_id} - "
+                            f"Stopped watching transfer {recipient_id} - status: {final_status}"
                         )
                         return
                     
-                    if is_transfer_expired(transfer):
-                        update_watcher_status(xpub_van, recipient_id, 'expired', refresh_count)
-                        stop_watcher(xpub_van, recipient_id)
+                    if monitor.check_expiration(transfer):
+                        lifecycle.update_status('expired', refresh_count)
+                        lifecycle.stop()
                         logger.info(
-                            f"[TransferWatcher] Wallet {xpub_van[:5]}...{xpub_van[-5:]} - "
+                            f"[TransferWatcher] Wallet {wallet_id} - "
                             f"Stopped watching transfer {recipient_id} - expired"
                         )
                         return
                 
-                try:
-                    if acquire_wallet_lock(xpub_van, ttl=30):
-                        try:
-                            api_client.refresh_wallet(job)
-                            refresh_count += 1
-                            update_watcher_status(
-                                xpub_van, recipient_id, "watching", refresh_count
-                            )
-                        finally:
-                            release_wallet_lock(xpub_van)
-                    else:
-                        logger.debug(
-                            f"[TransferWatcher] Wallet {xpub_van[:5]}...{xpub_van[-5:]} - "
-                            f"Wallet is being refreshed by another worker, skipping this cycle"
-                        )
-                except Exception as e:
-                    logger.warning(
-                        f"[TransferWatcher] Wallet {xpub_van[:5]}...{xpub_van[-5:]} - "
-                        f"Refresh failed for transfer {recipient_id}: {e}"
-                    )
+                refresh_response = refresher.refresh()
+                if refresh_response:
+                    refresh_count += 1
+                    
+                    # Check for failures in refresh response
+                    if transfer:
+                        batch_transfer_idx = transfer.get('batch_transfer_idx')
+                        if batch_transfer_idx is not None:
+                            batch_idx_str = str(batch_transfer_idx)
+                            if batch_idx_str in refresh_response:
+                                transfer_result = refresh_response[batch_idx_str]
+                                failure = transfer_result.get('failure')
+                                if failure and failure.get('details'):
+                                    failure_details = failure['details']
+                                    logger.error(
+                                        f"[TransferWatcher] Wallet {wallet_id} - "
+                                        f"Transfer {recipient_id} (batch_transfer_idx={batch_transfer_idx}) "
+                                        f"failed: {failure_details}"
+                                    )
+                                    lifecycle.update_status('failed', refresh_count)
+                                    lifecycle.stop()
+                                    logger.info(
+                                        f"[TransferWatcher] Wallet {wallet_id} - "
+                                        f"Stopped watching transfer {recipient_id} - refresh failure detected"
+                                    )
+                                    return
+                    
+                    lifecycle.update_status("watching", refresh_count)
                 
                 time.sleep(REFRESH_INTERVAL)
                 
             except Exception as e:
                 logger.error(
-                    f"[TransferWatcher] Wallet {xpub_van[:5]}...{xpub_van[-5:]} - "
+                    f"[TransferWatcher] Wallet {wallet_id} - "
                     f"Error watching transfer {recipient_id}: {e}", exc_info=True
                 )
                 time.sleep(REFRESH_INTERVAL)
     finally:
         if shutdown_flag():
             logger.info(
-                f"[TransferWatcher] Wallet {xpub_van[:5]}...{xpub_van[-5:]} - "
+                f"[TransferWatcher] Wallet {wallet_id} - "
                 f"Shutting down watcher for transfer {recipient_id}"
             )
-

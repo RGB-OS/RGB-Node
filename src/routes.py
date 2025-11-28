@@ -323,24 +323,45 @@ def refresh_wallet(wallet_dep: tuple[Wallet, object,str,str]=Depends(get_wallet)
 
 @router.post("/wallet/sync")
 def wallet_sync(
-    wallet_dep: tuple[Wallet, object,str,str]=Depends(get_wallet),
+    wallet_dep: tuple[Wallet, object,str,str]=Depends(get_wallet)
+):
+    wallet, online, xpub_van, xpub_col = wallet_dep
+    wallet.sync(online)
+    return {"message": "Wallet synced successfully"}
+
+
+@router.post("/wallet/sync-job")
+def trigger_sync_job(
+    wallet_dep: tuple[Wallet, object, str, str] = Depends(get_wallet),
     master_fingerprint: str = Header(..., alias="master-fingerprint")
 ):
-    wallet, online,xpub_van, xpub_col = wallet_dep
-    wallet.sync(online)
+    """
+    Trigger a sync job without performing the actual sync.
+    
+    This endpoint only enqueues a refresh job with trigger="sync".
+    The actual wallet sync and transfer processing will be handled
+    by the background worker.
+    
+    Returns:
+        dict: Response with job_id and message
+    """
+    wallet, online, xpub_van, xpub_col = wallet_dep
     
     try:
-        # job_id = enqueue_refresh_job(
-        #     xpub_van=xpub_van,
-        #     xpub_col=xpub_col,
-        #     master_fingerprint=master_fingerprint,
-        #     trigger="sync"
-        # )
-        logger.info(f"Enqueued refresh job {job_id} for wallet sync")
+        job_id = enqueue_refresh_job(
+            xpub_van=xpub_van,
+            xpub_col=xpub_col,
+            master_fingerprint=master_fingerprint,
+            trigger="sync"
+        )
+        logger.info(f"Enqueued sync job {job_id} for wallet {xpub_van[:5]}...{xpub_van[-5:]}")
+        return {
+            "message": "Sync job enqueued successfully",
+            "job_id": job_id
+        }
     except Exception as e:
-        logger.error(f"Failed to enqueue refresh job: {e}", exc_info=True)
-    
-    return {"message": "Wallet synced successfully"}
+        logger.error(f"Failed to enqueue sync job: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to enqueue sync job: {str(e)}")
 
 @router.post("/wallet/backup")
 def create_backup(req:Backup, wallet_dep: tuple[Wallet, object,str,str]=Depends(get_wallet)):

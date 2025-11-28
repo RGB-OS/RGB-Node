@@ -4,14 +4,21 @@ Job processor.
 Routes jobs to appropriate handlers and manages job lifecycle.
 """
 import logging
-from typing import Dict, Any
 from workers.processors.unified_handler import process_wallet_unified
-from src.queue import mark_job_completed, mark_job_failed, create_watcher, get_watcher_status
+from workers.models import Job, WalletCredentials
+from workers.utils import format_wallet_id
+from workers.config import INVOICE_WATCHER_EXPIRATION
+from src.queue import (
+    mark_job_completed,
+    mark_job_failed,
+    create_watcher,
+    get_watcher_status,
+)
 
 logger = logging.getLogger(__name__)
 
 
-def validate_job(job: Dict[str, Any]) -> bool:
+def validate_job(job: dict) -> bool:
     """
     Validate job structure has required fields.
     
@@ -29,11 +36,42 @@ def validate_job(job: Dict[str, Any]) -> bool:
     return True
 
 
-def process_job(job: Dict[str, Any], shutdown_flag: callable) -> None:
+def _handle_invoice_created_without_asset(job_obj: Job) -> None:
+    """
+    Handle invoice_created job without asset_id.
+    Creates watcher with 3 min expiration.
+    
+    Args:
+        job_obj: Job object
+    """
+    credentials = job_obj.get_credentials()
+    wallet_id = format_wallet_id(credentials.xpub_van)
+    
+    existing_watcher = get_watcher_status(credentials.xpub_van, job_obj.recipient_id)
+    if existing_watcher:
+        logger.info(
+            f"[JobProcessor] Watcher already exists for {wallet_id}:{job_obj.recipient_id}, "
+            f"skipping creation"
+        )
+        return
+    
+    create_watcher(
+        xpub_van=credentials.xpub_van,
+        xpub_col=credentials.xpub_col,
+        master_fingerprint=credentials.master_fingerprint,
+        recipient_id=job_obj.recipient_id,
+        asset_id=None,
+        expiration_seconds=INVOICE_WATCHER_EXPIRATION
+    )
+    logger.info(
+        f"[JobProcessor] Created watcher for invoice {job_obj.recipient_id} "
+        f"({INVOICE_WATCHER_EXPIRATION}s expiration)"
+    )
+
+
+def process_job(job: dict, shutdown_flag: callable) -> None:
     """
     Process a refresh job from the queue.
-    
-    All jobs are wallet refresh jobs (one per wallet).
     
     Args:
         job: Job dictionary from PostgreSQL queue
@@ -51,50 +89,22 @@ def process_job(job: Dict[str, Any], shutdown_flag: callable) -> None:
         logger.error(f"Job missing job_id: {job}")
         return
     
-    trigger = job.get('trigger', 'manual')
-    recipient_id = job.get('recipient_id')
-    asset_id = job.get('asset_id')
-    attempts = job.get('attempts', 0)
-    
-    logger.info(
-        f"[JobProcessor] Processing job {job_id}: trigger={trigger}, recipient_id={recipient_id}, asset_id={asset_id}"
-    )
-    
     try:
-        # Special handling for invoice_created without asset_id
-        if trigger == "invoice_created" and recipient_id and not asset_id:
-            # Create watcher with 3 min expiration (180 seconds)
-            xpub_van = job.get('xpub_van')
-            xpub_col = job.get('xpub_col')
-            master_fingerprint = job.get('master_fingerprint')
-            
-            # Check if watcher already exists
-            existing_watcher = get_watcher_status(xpub_van, recipient_id)
-            if existing_watcher:
-                logger.info(
-                    f"[JobProcessor] Watcher already exists for {xpub_van}:{recipient_id}, skipping creation"
-                )
-            else:
-                create_watcher(
-                    xpub_van=xpub_van,
-                    xpub_col=xpub_col,
-                    master_fingerprint=master_fingerprint,
-                    recipient_id=recipient_id,
-                    asset_id=None,
-                    expiration_seconds=180  # 3 minutes
-                )
-                logger.info(
-                    f"[JobProcessor] Created watcher for invoice {recipient_id} (3 min expiration)"
-                )
+        job_obj = Job.from_dict(job)
+        
+        logger.info(
+            f"[JobProcessor] Processing job {job_id}: trigger={job_obj.trigger}, "
+            f"recipient_id={job_obj.recipient_id}, asset_id={job_obj.asset_id}"
+        )
+        
+        if job_obj.trigger == "invoice_created" and job_obj.recipient_id and not job_obj.asset_id:
+            _handle_invoice_created_without_asset(job_obj)
             mark_job_completed(job_id)
         else:
-            # All other jobs: process wallet unified (will create watchers if needed)
             process_wallet_unified(job, shutdown_flag)
             mark_job_completed(job_id)
     except Exception as e:
         logger.error(
             f"[JobProcessor] Error processing job {job_id}: {e}", exc_info=True
         )
-        mark_job_failed(job_id, str(e), attempts + 1)
-        return
-
+        mark_job_failed(job_id, str(e), job.get('attempts', 0) + 1)

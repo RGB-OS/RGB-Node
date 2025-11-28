@@ -23,6 +23,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from workers.config import API_URL, POLL_INTERVAL, LOG_LEVEL, MAX_WALLET_PROCESSES
 from workers.signals import register_signal_handlers, get_shutdown_flag
 from workers.api.client import get_api_client
+from workers.utils import format_wallet_id
 from src.database.connection import get_db_connection
 from psycopg2.extras import RealDictCursor
 
@@ -63,15 +64,16 @@ def spawn_wallet_worker(xpub_van: str) -> Optional[Popen]:
             text=True
         )
         
+        wallet_id = format_wallet_id(xpub_van)
         logger.info(
-            f"[RefreshWorker] Spawned wallet worker for {xpub_van[:5]}...{xpub_van[-5:]} "
-            f"(PID: {process.pid})"
+            f"[RefreshWorker] Spawned wallet worker for {wallet_id} (PID: {process.pid})"
         )
         
         return process
     except Exception as e:
+        wallet_id = format_wallet_id(xpub_van)
         logger.error(
-            f"[RefreshWorker] Failed to spawn wallet worker for {xpub_van[:5]}...{xpub_van[-5:]}: {e}"
+            f"[RefreshWorker] Failed to spawn wallet worker for {wallet_id}: {e}"
         )
         return None
 
@@ -84,8 +86,9 @@ def cleanup_dead_processes() -> None:
     for xpub_van, process in active_processes.items():
         if process.poll() is not None:
             dead_wallets.append(xpub_van)
+            wallet_id = format_wallet_id(xpub_van)
             logger.debug(
-                f"[RefreshWorker] Wallet worker for {xpub_van[:5]}...{xpub_van[-5:]} "
+                f"[RefreshWorker] Wallet worker for {wallet_id} "
                 f"terminated (exit code: {process.returncode})"
             )
     
@@ -106,12 +109,14 @@ def terminate_all_processes() -> None:
     for xpub_van, process in active_processes.items():
         try:
             if process.poll() is None:  # Process still running
+                wallet_id = format_wallet_id(xpub_van)
                 logger.info(
-                    f"[RefreshWorker] Terminating wallet worker for {xpub_van[:5]}...{xpub_van[-5:]}"
+                    f"[RefreshWorker] Terminating wallet worker for {wallet_id}"
                 )
                 process.terminate()
         except Exception as e:
-            logger.error(f"Error terminating process for {xpub_van[:5]}...{xpub_van[-5:]}: {e}")
+            wallet_id = format_wallet_id(xpub_van)
+            logger.error(f"Error terminating process for {wallet_id}: {e}")
     
     # Wait for processes to terminate (with timeout)
     timeout = 10
@@ -126,12 +131,14 @@ def terminate_all_processes() -> None:
     for xpub_van, process in list(active_processes.items()):
         try:
             if process.poll() is None:
+                wallet_id = format_wallet_id(xpub_van)
                 logger.warning(
-                    f"[RefreshWorker] Force killing wallet worker for {xpub_van[:5]}...{xpub_van[-5:]}"
+                    f"[RefreshWorker] Force killing wallet worker for {wallet_id}"
                 )
                 process.kill()
         except Exception as e:
-            logger.error(f"Error killing process for {xpub_van[:5]}...{xpub_van[-5:]}: {e}")
+            wallet_id = format_wallet_id(xpub_van)
+            logger.error(f"Error killing process for {wallet_id}: {e}")
     
     active_processes.clear()
     logger.info("All wallet worker processes terminated")
@@ -209,18 +216,19 @@ def main() -> None:
                                     if process.poll() is None:
                                         continue
                                     else:
+                                        wallet_id = format_wallet_id(xpub_van)
                                         logger.warning(
-                                            f"[RefreshWorker] Wallet worker for {xpub_van[:5]}...{xpub_van[-5:]} "
-                                            f"died, will respawn"
+                                            f"[RefreshWorker] Wallet worker for {wallet_id} died, will respawn"
                                         )
                                         active_processes.pop(xpub_van, None)
                                 
                                 running_count = len([p for p in active_processes.values() if p.poll() is None])
                                 
                                 if running_count >= MAX_WALLET_PROCESSES:
+                                    wallet_id = format_wallet_id(xpub_van)
                                     logger.warning(
                                         f"[RefreshWorker] Maximum process limit reached ({MAX_WALLET_PROCESSES}), "
-                                        f"skipping wallet {xpub_van[:5]}...{xpub_van[-5:]}"
+                                        f"skipping wallet {wallet_id}"
                                     )
                                     continue
                                 
@@ -228,8 +236,9 @@ def main() -> None:
                                 if process:
                                     active_processes[xpub_van] = process
                                     running_count = len([p for p in active_processes.values() if p.poll() is None])
+                                    wallet_id = format_wallet_id(xpub_van)
                                     logger.info(
-                                        f"[RefreshWorker] Wallet worker spawned for wallet {xpub_van[:5]}...{xpub_van[-5:]} "
+                                        f"[RefreshWorker] Wallet worker spawned for wallet {wallet_id} "
                                         f"(active processes: {running_count}/{MAX_WALLET_PROCESSES})"
                                     )
                 except Exception as e:

@@ -29,7 +29,7 @@ def enqueue_refresh_job(
     Enqueue a refresh job to PostgreSQL queue.
     
     Only manages jobs - does NOT create watchers.
-    One job per wallet per trigger (job_id is deterministic UUID from xpub_van + trigger).
+    Each job gets a unique UUID, allowing multiple jobs per wallet.
     For invoice_created jobs, recipient_id and asset_id can be provided.
     
     Args:
@@ -41,33 +41,23 @@ def enqueue_refresh_job(
         asset_id: Optional asset ID (for invoice_created jobs, can be None)
     
     Returns:
-        job_id: Unique job identifier (deterministic UUID from xpub_van + trigger)
+        job_id: Unique job identifier (UUID)
         
     Raises:
         psycopg2.Error: If database operation fails
     """
-    # Generate deterministic UUID from xpub_van + trigger (allows multiple jobs per wallet)
-    wallet_namespace = uuid.UUID('6ba7b810-9dad-11d1-80b4-00c04fd430c8')  # Fixed namespace for wallet jobs
-    job_id = str(uuid.uuid5(wallet_namespace, f"{xpub_van}:{trigger}"))
+    # Generate unique UUID for each job
+    job_id = str(uuid.uuid4())
     
     try:
         with get_db_connection() as conn:
             with conn.cursor() as cur:
-                # Insert or update job (using ON CONFLICT to handle duplicates)
+                # Insert new job (each job has unique ID)
                 cur.execute("""
                     INSERT INTO refresh_jobs (
                         job_id, xpub_van, xpub_col, master_fingerprint,
                         trigger, recipient_id, asset_id, status, created_at, max_retries
                     ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW(), %s)
-                    ON CONFLICT (job_id) DO UPDATE SET
-                        trigger = EXCLUDED.trigger,
-                        recipient_id = EXCLUDED.recipient_id,
-                        asset_id = EXCLUDED.asset_id,
-                        created_at = CASE 
-                            WHEN refresh_jobs.status IN ('pending', 'processing') 
-                            THEN refresh_jobs.created_at 
-                            ELSE NOW() 
-                        END
                     RETURNING job_id
                 """, (
                     job_id, xpub_van, xpub_col, master_fingerprint,
