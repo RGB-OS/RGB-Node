@@ -2,7 +2,7 @@ name: Build & Deploy
 
 on:
   push:
-    branches: [prod, main, public]
+    branches: [bridge-prod, bridge-test, prod, main, public]
 
 concurrency:
   group: deploy-${{ github.ref_name }}
