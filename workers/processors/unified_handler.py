@@ -133,16 +133,16 @@ def _create_watcher_for_transfer(
 
 def _process_transfers_for_asset(
     credentials: WalletCredentials,
-    asset_id: str,
+    asset_id: Optional[str],
     transfers: List[Dict[str, Any]],
     shutdown_flag: callable
 ) -> None:
     """
-    Process transfers for a specific asset and create watchers for incomplete ones.
+    Process transfers for a specific asset (or without asset_id) and create watchers for incomplete ones.
     
     Args:
         credentials: Wallet credentials
-        asset_id: Asset ID
+        asset_id: Asset ID (None for transfers without asset_id)
         transfers: List of transfer dictionaries
         shutdown_flag: Callable that returns True if shutdown requested
     """
@@ -211,6 +211,9 @@ def _process_assets_and_transfers(
     """
     Process all assets and their transfers, creating watchers for incomplete transfers.
     
+    First processes transfers without asset_id (invoices created without asset_id),
+    then processes all assets and their transfers.
+    
     Args:
         credentials: Wallet credentials
         shutdown_flag: Callable that returns True if shutdown requested
@@ -219,6 +222,15 @@ def _process_assets_and_transfers(
     job_dict = credentials.to_dict()
     wallet_id = format_wallet_id(credentials.xpub_van)
     
+    # First, process transfers without asset_id (invoices created without asset_id)
+    logger.info(f"[UnifiedHandler] Wallet {wallet_id} - Listing transfers without asset_id...")
+    transfers_without_asset = api_client.list_transfers(job_dict, asset_id=None)
+    logger.info(f"[UnifiedHandler] Wallet {wallet_id} - Found {len(transfers_without_asset)} transfer(s) without asset_id")
+    
+    if transfers_without_asset:
+        _process_transfers_for_asset(credentials, None, transfers_without_asset, shutdown_flag)
+    
+    # Then, process all assets and their transfers
     logger.info(f"[UnifiedHandler] Wallet {wallet_id} - Listing assets...")
     assets = api_client.list_assets(job_dict)
     logger.info(f"[UnifiedHandler] Wallet {wallet_id} - Found {len(assets)} asset(s)")

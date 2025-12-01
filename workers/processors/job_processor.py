@@ -5,14 +5,10 @@ Routes jobs to appropriate handlers and manages job lifecycle.
 """
 import logging
 from workers.processors.unified_handler import process_wallet_unified
-from workers.models import Job, WalletCredentials
-from workers.utils import format_wallet_id
-from workers.config import INVOICE_WATCHER_EXPIRATION
+from workers.models import Job
 from src.queue import (
     mark_job_completed,
     mark_job_failed,
-    create_watcher,
-    get_watcher_status,
 )
 
 logger = logging.getLogger(__name__)
@@ -34,39 +30,6 @@ def validate_job(job: dict) -> bool:
             logger.error(f"Job missing required field: {field}")
             return False
     return True
-
-
-def _handle_invoice_created_without_asset(job_obj: Job) -> None:
-    """
-    Handle invoice_created job without asset_id.
-    Creates watcher with 3 min expiration.
-    
-    Args:
-        job_obj: Job object
-    """
-    credentials = job_obj.get_credentials()
-    wallet_id = format_wallet_id(credentials.xpub_van)
-    
-    existing_watcher = get_watcher_status(credentials.xpub_van, job_obj.recipient_id)
-    if existing_watcher:
-        logger.info(
-            f"[JobProcessor] Watcher already exists for {wallet_id}:{job_obj.recipient_id}, "
-            f"skipping creation"
-        )
-        return
-    
-    create_watcher(
-        xpub_van=credentials.xpub_van,
-        xpub_col=credentials.xpub_col,
-        master_fingerprint=credentials.master_fingerprint,
-        recipient_id=job_obj.recipient_id,
-        asset_id=None,
-        expiration_seconds=INVOICE_WATCHER_EXPIRATION
-    )
-    logger.info(
-        f"[JobProcessor] Created watcher for invoice {job_obj.recipient_id} "
-        f"({INVOICE_WATCHER_EXPIRATION}s expiration)"
-    )
 
 
 def process_job(job: dict, shutdown_flag: callable) -> None:
@@ -97,12 +60,10 @@ def process_job(job: dict, shutdown_flag: callable) -> None:
             f"recipient_id={job_obj.recipient_id}, asset_id={job_obj.asset_id}"
         )
         
-        if job_obj.trigger == "invoice_created" and job_obj.recipient_id and not job_obj.asset_id:
-            _handle_invoice_created_without_asset(job_obj)
-            mark_job_completed(job_id)
-        else:
-            process_wallet_unified(job, shutdown_flag)
-            mark_job_completed(job_id)
+        # All jobs now go through unified handler
+        # It will handle transfers without asset_id by calling list_transfers without asset_id
+        process_wallet_unified(job, shutdown_flag)
+        mark_job_completed(job_id)
     except Exception as e:
         logger.error(
             f"[JobProcessor] Error processing job {job_id}: {e}", exc_info=True

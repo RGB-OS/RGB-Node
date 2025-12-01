@@ -138,6 +138,49 @@ def update_watcher_status(
         logger.error(f"Failed to update watcher status: {e}")
 
 
+def update_watcher_asset_and_expiration(
+    xpub_van: str,
+    recipient_id: str,
+    asset_id: Optional[str],
+    expiration: Optional[int]
+) -> None:
+    """
+    Update watcher asset_id and expiration in PostgreSQL.
+    
+    Args:
+        xpub_van: Vanilla xpub
+        recipient_id: Recipient ID
+        asset_id: Asset ID to update (can be None)
+        expiration: Expiration timestamp (Unix timestamp, can be None)
+    """
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor() as cur:
+                if expiration is not None:
+                    # Convert Unix timestamp to UTC datetime
+                    expires_at_dt = datetime.fromtimestamp(expiration, tz=timezone.utc)
+                    expires_at_str = expires_at_dt.strftime('%Y-%m-%d %H:%M:%S')
+                    
+                    cur.execute("""
+                        UPDATE refresh_watchers
+                        SET asset_id = %s, expires_at = %s, last_refresh = NOW()
+                        WHERE xpub_van = %s AND recipient_id = %s
+                    """, (asset_id, expires_at_str, xpub_van, recipient_id))
+                else:
+                    cur.execute("""
+                        UPDATE refresh_watchers
+                        SET asset_id = %s, last_refresh = NOW()
+                        WHERE xpub_van = %s AND recipient_id = %s
+                    """, (asset_id, xpub_van, recipient_id))
+                
+                logger.info(
+                    f"Updated watcher {xpub_van}:{recipient_id} - "
+                    f"asset_id={asset_id}, expiration={expiration}"
+                )
+    except Exception as e:
+        logger.error(f"Failed to update watcher asset_id and expiration: {e}")
+
+
 def stop_watcher(xpub_van: str, recipient_id: str) -> None:
     """
     Stop a watcher by deleting it from PostgreSQL.

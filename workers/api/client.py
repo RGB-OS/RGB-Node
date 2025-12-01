@@ -140,13 +140,13 @@ class APIClient:
             logger.error(f"Error calling listassets API: {e}")
             raise
     
-    def list_transfers(self, job: Dict[str, Any], asset_id: str) -> List[Dict[str, Any]]:
+    def list_transfers(self, job: Dict[str, Any], asset_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """
-        List transfers for a specific asset.
+        List transfers for a specific asset or all transfers if asset_id is None.
         
         Args:
             job: Job dictionary with wallet credentials
-            asset_id: Asset ID to list transfers for
+            asset_id: Optional asset ID to list transfers for. If None, lists all transfers.
             
         Returns:
             List of transfer dictionaries
@@ -161,10 +161,15 @@ class APIClient:
         }
         
         try:
+            # Only include asset_id in request if it's not None
+            request_body = {}
+            if asset_id is not None:
+                request_body['asset_id'] = asset_id
+            
             response = self.session.post(
                 f"{self.base_url}/wallet/listtransfers",
                 headers=headers,
-                json={'asset_id': asset_id},
+                json=request_body,
                 timeout=self.timeout
             )
             response.raise_for_status()

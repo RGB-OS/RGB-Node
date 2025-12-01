@@ -15,6 +15,7 @@ from workers.models import WalletCredentials, Watcher
 from src.queue import (
     create_watcher,
     update_watcher_status,
+    update_watcher_asset_and_expiration,
     stop_watcher,
     get_watcher_status,
     acquire_wallet_lock,
@@ -144,6 +145,49 @@ class TransferMonitor:
             True if expired, False otherwise
         """
         return is_transfer_expired(transfer)
+    
+    def find_transfer_in_all_assets(self) -> Optional[tuple]:
+        """
+        Search for transfer across all assets when asset_id is None.
+        
+        This is used when a transfer was created without asset_id but may have
+        been assigned an asset_id after refresh.
+        
+        Returns:
+            Tuple of (transfer_dict, asset_id) if found, None otherwise
+            Note: asset_id can be None if transfer is found in list_transfers without asset_id
+        """
+        try:
+            job_dict = self.credentials.to_dict()
+            
+            # First, try listing transfers without asset_id
+            transfers = self.api_client.list_transfers(job_dict, asset_id=None)
+            for transfer in transfers:
+                if transfer.get('recipient_id') == self.recipient_id:
+                    # Found in transfers without asset_id, return with asset_id=None
+                    return (transfer, None)
+            
+            # If not found, search through all assets
+            assets = self.api_client.list_assets(job_dict)
+            for asset in assets:
+                asset_id = asset.get('asset_id')
+                if not asset_id:
+                    continue
+                
+                asset_id_str = str(asset_id)
+                asset_transfers = self.api_client.list_transfers(job_dict, asset_id_str)
+                for transfer in asset_transfers:
+                    if transfer.get('recipient_id') == self.recipient_id:
+                        # Found in this asset, return with the asset_id
+                        return (transfer, asset_id_str)
+            
+            return None
+        except Exception as e:
+            logger.warning(
+                f"[TransferMonitor] Wallet {self.wallet_id} - "
+                f"Error searching for transfer {self.recipient_id} across assets: {e}"
+            )
+            return None
 
 
 class WalletRefresher:
@@ -276,7 +320,6 @@ def watch_transfer(
     lifecycle = WatcherLifecycle(credentials, recipient_id, asset_id)
     monitor = TransferMonitor(credentials, recipient_id, asset_id)
     refresher = WalletRefresher(credentials)
-    expiration_checker = ExpirationChecker(credentials, recipient_id)
     
     lifecycle.ensure_watcher_exists()
     
@@ -290,20 +333,63 @@ def watch_transfer(
     try:
         while not shutdown_flag():
             try:
-                if not asset_id:
-                    if expiration_checker.check_and_handle_expiration():
-                        lifecycle.update_status('expired', refresh_count)
-                        lifecycle.stop()
-                        return
+                # Removed special handling for watchers without asset_id
+                # All watchers now follow the same flow - they will be processed
+                # by process_wallet_unified which calls list_transfers without asset_id
                 
                 transfer = monitor.get_transfer_status()
                 
                 if not transfer:
-                    logger.info(
-                        f"[TransferWatcher] Wallet {wallet_id} - "
-                        f"Transfer not found for {recipient_id}, continuing..."
-                    )
-                else:
+                    # If asset_id is None and transfer not found, search across all assets
+                    # The transfer might have been assigned an asset_id after creation
+                    if not asset_id:
+                        logger.info(
+                            f"[TransferWatcher] Wallet {wallet_id} - "
+                            f"Transfer {recipient_id} not found without asset_id, "
+                            f"searching across all assets..."
+                        )
+                        result = monitor.find_transfer_in_all_assets()
+                        
+                        if result:
+                            # Found transfer, result is (transfer_dict, asset_id)
+                            transfer, found_asset_id = result
+                            found_expiration = transfer.get('expiration')
+                            
+                            if found_asset_id:
+                                logger.info(
+                                    f"[TransferWatcher] Wallet {wallet_id} - "
+                                    f"Found transfer {recipient_id} with asset_id={found_asset_id}, "
+                                    f"updating watcher..."
+                                )
+                                
+                                # Update watcher with asset_id and expiration
+                                update_watcher_asset_and_expiration(
+                                    credentials.xpub_van,
+                                    recipient_id,
+                                    found_asset_id,
+                                    found_expiration
+                                )
+                                
+                                monitor.asset_id = found_asset_id
+                                lifecycle.asset_id = found_asset_id
+                                asset_id = found_asset_id
+                            else:
+                                logger.info(
+                                    f"[TransferWatcher] Wallet {wallet_id} - "
+                                    f"Found transfer {recipient_id} but still without asset_id"
+                                )
+                        else:
+                            logger.info(
+                                f"[TransferWatcher] Wallet {wallet_id} - "
+                                f"Transfer {recipient_id} not found in any asset, continuing..."
+                            )
+                    else:
+                        logger.info(
+                            f"[TransferWatcher] Wallet {wallet_id} - "
+                            f"Transfer not found for {recipient_id} with asset_id={asset_id}, continuing..."
+                        )
+                
+                if transfer:
                     final_status = monitor.check_completion(transfer)
                     if final_status:
                         lifecycle.update_status(final_status, refresh_count)
