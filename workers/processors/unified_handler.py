@@ -11,6 +11,7 @@ from workers.processors.transfer_utils import (
     is_transfer_completed,
     is_transfer_expired,
     get_transfer_identifier,
+    can_cancel_transfer,
 )
 from workers.utils import retry_with_backoff, format_wallet_id
 from workers.models import WalletCredentials, Job
@@ -163,10 +164,39 @@ def _process_transfers_for_asset(
         if _should_watch_transfer(transfer):
             _create_watcher_for_transfer(credentials, recipient_id, asset_id)
         elif is_transfer_expired(transfer):
-            logger.debug(
-                f"[UnifiedHandler] Wallet {wallet_id} - "
-                f"Transfer {recipient_id} is expired, skipping"
-            )
+            # Check if transfer can be cancelled before calling failtransfers
+            if can_cancel_transfer(transfer):
+                batch_transfer_idx = transfer.get('batch_transfer_idx')
+                if batch_transfer_idx is not None:
+                    try:
+                        api_client = get_api_client()
+                        job_dict = credentials.to_dict()
+                        result = api_client.fail_transfers(
+                            job=job_dict,
+                            batch_transfer_idx=batch_transfer_idx,
+                            no_asset_only=False,
+                            skip_sync=False
+                        )
+                        logger.info(
+                            f"[UnifiedHandler] Wallet {wallet_id} - "
+                            f"Failed expired transfer {recipient_id} (batch_transfer_idx={batch_transfer_idx}): {result}"
+                        )
+                    except Exception as e:
+                        logger.error(
+                            f"[UnifiedHandler] Wallet {wallet_id} - "
+                            f"Failed to call failtransfers for expired transfer {recipient_id}: {e}",
+                            exc_info=True
+                        )
+                else:
+                    logger.warning(
+                        f"[UnifiedHandler] Wallet {wallet_id} - "
+                        f"Transfer {recipient_id} expired but missing batch_transfer_idx"
+                    )
+            else:
+                logger.debug(
+                    f"[UnifiedHandler] Wallet {wallet_id} - "
+                    f"Transfer {recipient_id} expired but cannot be cancelled (doesn't meet cancellation criteria)"
+                )
         else:
             logger.debug(
                 f"[UnifiedHandler] Wallet {wallet_id} - "

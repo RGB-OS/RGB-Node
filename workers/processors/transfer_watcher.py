@@ -9,7 +9,7 @@ import logging
 from typing import Optional, Dict, Any
 from workers.config import REFRESH_INTERVAL, WALLET_LOCK_TTL
 from workers.api.client import get_api_client
-from workers.processors.transfer_utils import is_transfer_completed, is_transfer_expired
+from workers.processors.transfer_utils import is_transfer_completed, is_transfer_expired, can_cancel_transfer
 from workers.utils import format_wallet_id, normalize_transfer_status
 from workers.models import WalletCredentials, Watcher
 from src.queue import (
@@ -315,6 +315,48 @@ def watch_transfer(
                         return
                     
                     if monitor.check_expiration(transfer):
+                        # Check if transfer can be cancelled before calling failtransfers
+                        logger.info(
+                            f"[TransferWatcher] Wallet {wallet_id} - "
+                            f"Transfer {recipient_id} expired. Checking if can be cancelled. "
+                            f"Status: {transfer.get('status')}, Kind: {transfer.get('kind')}, "
+                            f"Expiration: {transfer.get('expiration')}, batch_transfer_idx: {transfer.get('batch_transfer_idx')}"
+                        )
+                        
+                        if can_cancel_transfer(transfer):
+                            batch_transfer_idx = transfer.get('batch_transfer_idx')
+                            if batch_transfer_idx is not None:
+                                try:
+                                    api_client = get_api_client()
+                                    job_dict = credentials.to_dict()
+                                    result = api_client.fail_transfers(
+                                        job=job_dict,
+                                        batch_transfer_idx=batch_transfer_idx,
+                                        no_asset_only=False,
+                                        skip_sync=False
+                                    )
+                                    logger.info(
+                                        f"[TransferWatcher] Wallet {wallet_id} - "
+                                        f"Failed expired transfer {recipient_id} (batch_transfer_idx={batch_transfer_idx}): {result}"
+                                    )
+                                except Exception as e:
+                                    logger.error(
+                                        f"[TransferWatcher] Wallet {wallet_id} - "
+                                        f"Failed to call failtransfers for expired transfer {recipient_id}: {e}",
+                                        exc_info=True
+                                    )
+                            else:
+                                logger.warning(
+                                    f"[TransferWatcher] Wallet {wallet_id} - "
+                                    f"Transfer {recipient_id} expired but missing batch_transfer_idx"
+                                )
+                        else:
+                            logger.info(
+                                f"[TransferWatcher] Wallet {wallet_id} - "
+                                f"Transfer {recipient_id} expired but cannot be cancelled (doesn't meet cancellation criteria: "
+                                f"status={transfer.get('status')}, kind={transfer.get('kind')}, expiration={transfer.get('expiration')})"
+                            )
+                        
                         lifecycle.update_status('expired', refresh_count)
                         lifecycle.stop()
                         logger.info(

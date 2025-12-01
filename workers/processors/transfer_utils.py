@@ -5,6 +5,7 @@ Shared functions for checking transfer status across different processors.
 """
 import time
 from typing import Dict, Any, Optional
+from src.constant import RGB_INVOICE_DURATION_SECONDS
 
 
 def get_transfer_identifier(transfer: Optional[Dict[str, Any]] = None, job: Optional[Dict[str, Any]] = None) -> Optional[str]:
@@ -77,4 +78,75 @@ def is_transfer_expired(transfer: Dict[str, Any]) -> bool:
         return True
     
     return False
+
+
+def can_cancel_transfer(transfer: Dict[str, Any]) -> bool:
+    """
+    Check if a transfer can be cancelled (failed).
+    
+    Transfers can only be cancelled if:
+    1. Status is WAITING_COUNTERPARTY
+    2. Transfer has expiration and it's in the past
+    3. Either:
+       - Transfer kind is RECEIVE_BLIND, OR
+       - expiration + DURATION_RCV_TRANSFER < now
+    
+    Args:
+        transfer: Transfer dictionary
+        
+    Returns:
+        True if transfer can be cancelled, False otherwise
+    """
+    # Check status is WAITING_COUNTERPARTY
+    status = transfer.get('status')
+    
+    # Normalize status to string
+    # TransferStatus enum values: WAITING_COUNTERPARTY=0, WAITING_CONFIRMATIONS=1, SETTLED=2, FAILED=3
+    if hasattr(status, 'name'):
+        status_normalized = status.name.upper()
+    elif isinstance(status, int):
+        # Map integer enum values to names
+        # TransferStatus: WAITING_COUNTERPARTY = 0
+        if status == 0:
+            status_normalized = 'WAITING_COUNTERPARTY'
+        else:
+            status_normalized = str(status).upper()
+    elif isinstance(status, str):
+        status_normalized = status.upper()
+    else:
+        # Try to convert to string and check
+        status_normalized = str(status).upper()
+    
+    # Exact match required
+    if status_normalized != 'WAITING_COUNTERPARTY':
+        return False
+    
+    # Check expiration exists and is in the past
+    expiration = transfer.get('expiration')
+    if not expiration:
+        return False
+    
+    now = int(time.time())
+    if expiration >= now:
+        return False
+    
+    # Check kind
+    kind = transfer.get('kind')
+    
+    # Normalize kind to string
+    if hasattr(kind, 'name'):
+        kind_name = kind.name.upper()
+    elif isinstance(kind, int):
+        # TransferKind: RECEIVE_BLIND = 1
+        kind_name = 'RECEIVE_BLIND' if kind == 1 else None
+    elif isinstance(kind, str):
+        kind_name = kind.upper()
+    else:
+        kind_name = str(kind).upper() if kind else None
+    
+    # Check condition: RECEIVE_BLIND OR expiration + DURATION_RCV_TRANSFER < now
+    is_receive_blind = kind_name == 'RECEIVE_BLIND'
+    expiration_plus_duration = expiration + RGB_INVOICE_DURATION_SECONDS
+    
+    return is_receive_blind or expiration_plus_duration < now
 

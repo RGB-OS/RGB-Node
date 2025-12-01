@@ -232,6 +232,61 @@ class APIClient:
             logger.warning(f"Error calling listtransfers API: {e}")
             return None
     
+    def fail_transfers(self, job: Dict[str, Any], batch_transfer_idx: int, no_asset_only: bool = False, skip_sync: bool = False) -> Dict[str, Any]:
+        """
+        Call /wallet/failtransfers endpoint to fail expired transfers.
+        
+        Args:
+            job: Job dictionary with wallet credentials (xpub_van, xpub_col, master_fingerprint)
+            batch_transfer_idx: Batch transfer index to fail
+            no_asset_only: If True, only fail transfers without assets
+            skip_sync: If True, skip wallet sync
+            
+        Returns:
+            Response from failtransfers endpoint
+            
+        Raises:
+            ValueError: If job is missing required fields
+            requests.exceptions.RequestException: If API call fails
+        """
+        required_fields = ['xpub_van', 'xpub_col', 'master_fingerprint']
+        for field in required_fields:
+            if field not in job:
+                raise ValueError(f"Missing required field in job: {field}")
+        
+        headers = {
+            'xpub-van': job['xpub_van'],
+            'xpub-col': job['xpub_col'],
+            'master-fingerprint': job['master_fingerprint']
+        }
+        
+        payload = {
+            'batch_transfer_idx': batch_transfer_idx,
+            'no_asset_only': no_asset_only,
+            'skip_sync': skip_sync
+        }
+        
+        try:
+            response = self.session.post(
+                f"{self.base_url}/wallet/failtransfers",
+                headers=headers,
+                json=payload,
+                timeout=self.timeout
+            )
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.Timeout as e:
+            logger.error(f"Timeout calling failtransfers API: {e}")
+            raise
+        except requests.exceptions.HTTPError as e:
+            logger.error(
+                f"HTTP error calling failtransfers API: {e.response.status_code} - {e.response.text}"
+            )
+            raise
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Error calling failtransfers API: {e}")
+            raise
+    
     def health_check(self) -> bool:
         """
         Check if API is accessible.
