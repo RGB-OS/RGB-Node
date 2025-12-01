@@ -164,7 +164,6 @@ def _process_transfers_for_asset(
         if _should_watch_transfer(transfer):
             _create_watcher_for_transfer(credentials, recipient_id, asset_id)
         elif is_transfer_expired(transfer):
-            # Check if transfer can be cancelled before calling failtransfers
             if can_cancel_transfer(transfer):
                 batch_transfer_idx = transfer.get('batch_transfer_idx')
                 if batch_transfer_idx is not None:
@@ -222,7 +221,6 @@ def _process_assets_and_transfers(
     job_dict = credentials.to_dict()
     wallet_id = format_wallet_id(credentials.xpub_van)
     
-    # First, process transfers without asset_id (invoices created without asset_id)
     logger.info(f"[UnifiedHandler] Wallet {wallet_id} - Listing transfers without asset_id...")
     transfers_without_asset = api_client.list_transfers(job_dict, asset_id=None)
     logger.info(f"[UnifiedHandler] Wallet {wallet_id} - Found {len(transfers_without_asset)} transfer(s) without asset_id")
@@ -230,7 +228,6 @@ def _process_assets_and_transfers(
     if transfers_without_asset:
         _process_transfers_for_asset(credentials, None, transfers_without_asset, shutdown_flag)
     
-    # Then, process all assets and their transfers
     logger.info(f"[UnifiedHandler] Wallet {wallet_id} - Listing assets...")
     assets = api_client.list_assets(job_dict)
     logger.info(f"[UnifiedHandler] Wallet {wallet_id} - Found {len(assets)} asset(s)")

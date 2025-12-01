@@ -60,8 +60,6 @@ def process_job(job: dict, shutdown_flag: callable) -> None:
             f"recipient_id={job_obj.recipient_id}, asset_id={job_obj.asset_id}"
         )
         
-        # All jobs now go through unified handler
-        # It will handle transfers without asset_id by calling list_transfers without asset_id
         process_wallet_unified(job, shutdown_flag)
         mark_job_completed(job_id)
     except Exception as e:

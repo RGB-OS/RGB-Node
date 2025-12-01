@@ -333,15 +333,9 @@ def watch_transfer(
     try:
         while not shutdown_flag():
             try:
-                # Removed special handling for watchers without asset_id
-                # All watchers now follow the same flow - they will be processed
-                # by process_wallet_unified which calls list_transfers without asset_id
-                
                 transfer = monitor.get_transfer_status()
                 
                 if not transfer:
-                    # If asset_id is None and transfer not found, search across all assets
-                    # The transfer might have been assigned an asset_id after creation
                     if not asset_id:
                         logger.info(
                             f"[TransferWatcher] Wallet {wallet_id} - "
@@ -351,7 +345,6 @@ def watch_transfer(
                         result = monitor.find_transfer_in_all_assets()
                         
                         if result:
-                            # Found transfer, result is (transfer_dict, asset_id)
                             transfer, found_asset_id = result
                             found_expiration = transfer.get('expiration')
                             
@@ -362,7 +355,6 @@ def watch_transfer(
                                     f"updating watcher..."
                                 )
                                 
-                                # Update watcher with asset_id and expiration
                                 update_watcher_asset_and_expiration(
                                     credentials.xpub_van,
                                     recipient_id,
@@ -401,7 +393,6 @@ def watch_transfer(
                         return
                     
                     if monitor.check_expiration(transfer):
-                        # Check if transfer can be cancelled before calling failtransfers
                         logger.info(
                             f"[TransferWatcher] Wallet {wallet_id} - "
                             f"Transfer {recipient_id} expired. Checking if can be cancelled. "
@@ -455,7 +446,6 @@ def watch_transfer(
                 if refresh_response:
                     refresh_count += 1
                     
-                    # Check for failures in refresh response
                     if transfer:
                         batch_transfer_idx = transfer.get('batch_transfer_idx')
                         if batch_transfer_idx is not None:

@@ -172,6 +172,14 @@ Once running, visit:
 - **Swagger UI**: http://localhost:8000/docs
 - **ReDoc**: http://localhost:8000/redoc
 
+### Key Endpoints
+
+- **`/wallet/sync`**: Performs immediate wallet sync (does not enqueue background job)
+- **`/wallet/sync-job`**: Enqueues a background sync job for processing by workers
+- **`/wallet/refresh`**: Manually refresh wallet state
+- **`/wallet/blindreceive`**: Create blind receive invoice (triggers background refresh job)
+- **`/wallet/witnessreceive`**: Create witness receive invoice (triggers background refresh job)
+
 ## Next Steps
 
 - See [REFRESH_FLOW.md](./REFRESH_FLOW.md) to understand how the refresh system works

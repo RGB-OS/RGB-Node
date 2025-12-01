@@ -38,10 +38,11 @@ The system uses PostgreSQL to queue refresh jobs and a process-based orchestrato
 ## Key Concepts
 
 ### Jobs
-- **One job per wallet per trigger** (job_id = UUID5(xpub_van + trigger))
+- **Unique job ID per job** (job_id = UUID4, truly unique)
 - Jobs are stored in `refresh_jobs` table
 - Status: `pending` → `processing` → `completed`/`failed`
-- Different triggers create different jobs for the same wallet (sync, send, invoice_created)
+- Multiple jobs can exist for the same wallet (e.g., sync, send, invoice_created)
+- Jobs include optional `recipient_id` and `asset_id` fields (for invoice_created triggers)
 
 ### Watchers
 - **One watcher per transfer** (unique by xpub_van + recipient_id)
@@ -121,18 +122,21 @@ The system uses PostgreSQL to queue refresh jobs and a process-based orchestrato
 
 ### 4. Sync Flow
 
-**Trigger**: Wallet synced via `/wallet/sync`
+**Trigger**: Sync job enqueued via `/wallet/sync-job` endpoint
 
 **Steps**:
-1. API syncs wallet and enqueues job with `trigger="sync"`
+1. API enqueues job with `trigger="sync"` (no immediate wallet sync)
 2. Orchestrator spawns wallet worker process
 3. Wallet worker processes job:
    - Acquires wallet lock
    - Refreshes wallet state
-   - Lists assets and transfers
+   - Lists transfers without asset_id first
+   - Lists all assets and their transfers
    - Creates watchers for incomplete transfers
    - Releases wallet lock
 4. Job completes, wallet worker processes watchers
+
+**Note**: The `/wallet/sync` endpoint only performs an immediate wallet sync and does not enqueue a job. Use `/wallet/sync-job` to trigger background processing.
 
 **Database**:
 - Job in `refresh_jobs` table
@@ -165,14 +169,17 @@ The system uses PostgreSQL to queue refresh jobs and a process-based orchestrato
 - All other jobs: calls `process_wallet_unified()`
 
 ### Unified Handler (`unified_handler.py`)
-- Processes wallet refresh, lists assets, lists transfers
+- Processes wallet refresh, lists transfers without asset_id, lists assets, lists transfers
 - Creates watchers for incomplete transfers
+- Handles expired transfers by calling `/wallet/failtransfers` if eligible
 - Uses wallet lock to prevent concurrent refreshes
 
 ### Transfer Watcher (`transfer_watcher.py`)
 - Monitors individual transfers until completion
+- Handles transfers that initially lack `asset_id` but acquire one later (searches across all assets)
 - Refreshes wallet every `REFRESH_INTERVAL` seconds (with lock)
 - Checks for watcher expiration (for invoice_created without asset_id)
+- Handles expired transfers by calling `/wallet/failtransfers` if eligible
 - Stops when transfer completes, fails, or expires
 
 ## Wallet Locking
@@ -195,11 +202,11 @@ The system uses PostgreSQL to queue refresh jobs and a process-based orchestrato
 ## Database Schema
 
 ### `refresh_jobs`
-- `job_id`: UUID (deterministic from xpub_van + trigger)
+- `job_id`: UUID4 (unique per job)
 - `xpub_van`, `xpub_col`, `master_fingerprint`: Wallet credentials
 - `trigger`: What triggered the job (sync, asset_sent, invoice_created, etc.)
 - `recipient_id`: Optional (for invoice_created jobs)
-- `asset_id`: Optional (for invoice_created jobs)
+- `asset_id`: Optional (for invoice_created jobs, can be None)
 - `status`: pending, processing, completed, failed
 - `created_at`, `processed_at`: Timestamps
 
@@ -261,11 +268,14 @@ This ensures continuity after restarts or crashes.
 ```
 1. API enqueues job → status: 'pending'
 2. Orchestrator detects wallet with pending job
-3. Orchestrator spawns wallet worker process (if not already running)
+3. Orchestrator spawns wallet worker process (if not already running and under MAX_WALLET_PROCESSES limit)
 4. Wallet worker dequeues job → status: 'processing'
 5. Wallet worker processes job:
-   - invoice_created (no asset_id): Creates watcher with 3 min expiration
-   - All other jobs: Calls process_wallet_unified() → creates watchers for incomplete transfers
+   - All jobs: Calls process_wallet_unified() which:
+     - Lists transfers without asset_id first
+     - Lists all assets and their transfers
+     - Creates watchers for incomplete transfers
+     - Handles expired transfers (calls failtransfers if eligible)
 6. Job completes → status: 'completed' or 'failed'
 7. Wallet worker processes active watchers
 8. Wallet worker terminates after idle timeout
@@ -288,6 +298,23 @@ SELECT status, COUNT(*) FROM refresh_jobs GROUP BY status;
 SELECT xpub_van, COUNT(*) FROM refresh_jobs WHERE status='pending' GROUP BY xpub_van;
 ```
 
+## Transfer Cancellation
+
+Expired transfers are automatically cancelled (failed) if they meet specific criteria:
+
+**Cancellation Conditions**:
+- Transfer status is `WAITING_COUNTERPARTY` (0)
+- Transfer has an expiration timestamp that is in the past
+- Either:
+  - Transfer kind is `RECEIVE_BLIND` (1), OR
+  - `expiration + DURATION_RCV_TRANSFER < now`
+
+**Implementation**:
+- Checked in `transfer_utils.can_cancel_transfer()`
+- Called from `unified_handler.py` during initial processing
+- Called from `transfer_watcher.py` when transfer expires during watching
+- Uses `/wallet/failtransfers` API endpoint with `batch_transfer_idx`
+
 ## Error Handling
 
 - **Queue failures**: Logged but don't fail API requests
@@ -296,3 +323,4 @@ SELECT xpub_van, COUNT(*) FROM refresh_jobs WHERE status='pending' GROUP BY xpub
 - **Lock conflicts**: Operation skipped, logged as debug/warning
 - **Process failures**: Orchestrator detects and respawns wallet worker
 - **Process limit reached**: New wallets skipped until processes free up
+- **Transfer cancellation failures**: Logged but don't stop watcher processing
