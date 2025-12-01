@@ -295,7 +295,9 @@ Response:
 
 ## Storage model
 
-For now, wallet state is stored on the file system due to current `rgb-lib` constraints. In future versions, wallet state can be persisted in a relational database (e.g., PostgreSQL) to support HA, clustering, and backup/restore workflows beyond single-node storage.
+- **Wallet state**: Stored on the file system (`./data/`) due to current `rgb-lib` constraints
+- **Refresh queue & watchers**: Stored in PostgreSQL for durability and recovery
+- **Automatic recovery**: Active watchers are automatically recovered on startup
 
 ## External Signer
 
@@ -321,7 +323,73 @@ This model keeps private keys off the RGB Node and avoids any public-facing key 
 - Observability: metrics endpoints and structured logs
 - Extended rgb-lib surface area as new features land
 
+## Refresh Worker
 
+The RGB Node includes an automatic refresh worker that syncs wallet state when invoices are created or assets are sent. The worker runs as a separate service and automatically refreshes wallets until transfers are settled or failed.
+
+### Running with Docker Compose
+
+The refresh worker is included in `docker-compose.yml` and starts automatically:
+
+```bash
+docker compose up
+```
+
+This starts:
+- `postgres` - PostgreSQL database (port 5432)
+- `thunderlink-python` - FastAPI service (port 8000)
+- `refresh-worker` - Background process (no port, connects to PostgreSQL and FastAPI)
+
+Scale workers:
+```bash
+docker compose up --scale refresh-worker=3
+```
+
+### Running Manually
+
+1. Start PostgreSQL:
+```bash
+# Using Docker
+docker run -d --name postgres-rgb \
+  -e POSTGRES_PASSWORD=postgres \
+  -e POSTGRES_DB=rgb_node \
+  -p 5432:5432 \
+  postgres:15-alpine
+
+# Or using local PostgreSQL
+createdb rgb_node
+psql rgb_node < migrations/001_initial_schema.sql
+```
+
+2. Start FastAPI:
+```bash
+uvicorn main:app --reload
+```
+
+3. Start Worker (in separate terminal):
+```bash
+python -m workers.refresh_worker
+```
+
+### Configuration
+
+Add to your `.env` file:
+```bash
+POSTGRES_URL=postgresql://postgres:postgres@localhost:5432/rgb_node
+REFRESH_INTERVAL=100
+MAX_REFRESH_RETRIES=10
+ENABLE_RECOVERY=true
+```
+
+The worker automatically:
+- Watches invoices until `SETTLED` or `FAILED`
+- Refreshes wallet state after asset sends
+- Retries with exponential backoff on failures
+- Recovers active watchers on startup (if `ENABLE_RECOVERY=true`)
+
+**PostgreSQL Migration**: RGB Node now uses PostgreSQL instead of Redis for better durability and automatic recovery. See [POSTGRES_MIGRATION.md](./POSTGRES_MIGRATION.md) for migration details.
+
+For more details, see [REFRESH_WORKER.md](./REFRESH_WORKER.md).
 
 
 

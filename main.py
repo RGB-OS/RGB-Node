@@ -6,8 +6,18 @@ from src.wallet_utils import WalletNotFoundError
 from fastapi import FastAPI,Request
 from src.routes import router 
 import rgb_lib
+import os
+import logging
 
 
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
+logging.basicConfig(
+    level=getattr(logging, LOG_LEVEL, logging.INFO),
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="ThunderLink RGB Wallet API",
     version="1.0.0",
@@ -20,4 +30,26 @@ async def wallet_not_found_handler(request: Request, exc: WalletNotFoundError):
         status_code=404,
         content={"error": str(exc)}
     )
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize database and recover active watchers on startup."""
+    try:
+        from src.queue import init_database, recover_active_watchers
+        
+        # Initialize database schema
+        logger.info("Initializing database schema...")
+        init_database()
+        logger.info("Database schema initialized")
+        
+        if os.getenv("ENABLE_RECOVERY", "true").lower() == "true":
+            logger.info("Recovering active watchers...")
+            recovered = recover_active_watchers()
+            logger.info(f"Recovery complete: {recovered} watchers recovered")
+        else:
+            logger.info("Recovery disabled (ENABLE_RECOVERY=false)")
+    except Exception as e:
+        logger.error(f"Startup error: {e}", exc_info=True)
+      
+
 app.include_router(router)
