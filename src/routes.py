@@ -3,8 +3,8 @@ from fastapi import File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from src.dependencies import get_wallet,create_wallet
-from rgb_lib import BitcoinNetwork, Wallet, AssetSchema, Assignment
-from src.rgb_model import AssetNia, Backup, Balance, BtcBalance, DecodeRgbInvoiceRequestModel, DecodeRgbInvoiceResponseModel, FailTransferRequestModel, GetAssetResponseModel, GetFeeEstimateRequestModel, IssueAssetNiaRequestModel, ListTransfersRequestModel, ReceiveData, Recipient, RefreshRequestModel, RegisterModel, RgbInvoiceRequestModel, SendAssetBeginModel, SendAssetBeginRequestModel, SendBtcBeginRequestModel, SendBtcEndRequestModel, SendResult, Transfer, Unspent
+from rgb_lib import BitcoinNetwork, Wallet,AssetSchema, Assignment
+from src.rgb_model import AssetIfa, AssetNia, Backup, Balance, BtcBalance, DecodeRgbInvoiceRequestModel, DecodeRgbInvoiceResponseModel, FailTransferRequestModel, GetAssetResponseModel, GetFeeEstimateRequestModel, InflateAssetIfaRequestModel, InflateEndRequestModel, IssueAssetIfaRequestModel, IssueAssetNiaRequestModel, ListTransfersRequestModel, OperationResult, ReceiveData, Recipient, RefreshRequestModel, RegisterModel, RgbInvoiceRequestModel, SendAssetBeginModel, SendAssetBeginRequestModel, SendBtcBeginRequestModel, SendBtcEndRequestModel, SendResult, Transfer, Unspent
 from fastapi import APIRouter, Depends, Header
 import os
 from src.wallet_utils import BACKUP_PATH, create_wallet_instance, get_backup_path, remove_backup_if_exists, restore_wallet_instance, test_wallet_instance, WalletStateExistsError
@@ -94,7 +94,7 @@ def create_utxos_end(req: CreateUtxosEnd, wallet_dep: tuple[Wallet, object,str,s
 @router.post("/wallet/listassets",response_model=GetAssetResponseModel)
 def list_assets(wallet_dep: tuple[Wallet, object,str,str]=Depends(get_wallet)):
     wallet, online,xpub_van, xpub_col = wallet_dep
-    assets = wallet.list_assets([AssetSchema.NIA])
+    assets = wallet.list_assets([AssetSchema.NIA,AssetSchema.IFA])
     return assets
 
 @router.post("/wallet/btcbalance",response_model=BtcBalance)
@@ -116,6 +116,24 @@ def issue_asset_nia(req: IssueAssetNiaRequestModel, wallet_dep: tuple[Wallet, ob
     wallet, online,xpub_van, xpub_col = wallet_dep
     asset = wallet.issue_asset_nia(req.ticker, req.name, req.precision, req.amounts)
     return asset
+
+@router.post("/wallet/issueassetifa",response_model=AssetIfa)
+def issue_asset_cfa(req: IssueAssetIfaRequestModel, wallet_dep: tuple[Wallet, object,str,str]=Depends(get_wallet)):
+    wallet, online,xpub_van, xpub_col = wallet_dep
+    asset = wallet.issue_asset_ifa(req.ticker, req.name, req.precision, req.amounts, req.inflation_amounts, req.replace_rights_num, req.reject_list_url)
+    return asset
+
+@router.post('/wallet/inflatebegin',response_model=str)
+def inflate_begin(req: InflateAssetIfaRequestModel, wallet_dep: tuple[Wallet, object,str,str]=Depends(get_wallet)):
+    wallet, online,xpub_van, xpub_col = wallet_dep
+    psbt = wallet.inflate_begin(online,req.asset_id, req.inflation_amounts,req.fee_rate,req.min_confirmations)
+    return psbt
+
+@router.post('/wallet/inflateend',response_model=OperationResult)
+def inflate_end(req: InflateEndRequestModel, wallet_dep: tuple[Wallet, object,str,str]=Depends(get_wallet)):
+    wallet, online,xpub_van, xpub_col = wallet_dep
+    result = wallet.inflate_end(online,req.signed_psbt)
+    return result
 
 @router.post("/wallet/assetbalance",response_model=Balance)
 def get_asset_balance(req: AssetBalanceRequest, wallet_dep: tuple[Wallet, object,str,str]=Depends(get_wallet)):
