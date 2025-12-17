@@ -88,6 +88,10 @@ class SendAssetBeginModel(BaseModel):
     fee_rate: int = 5
     min_confirmations: int = 1
 
+class OperationResult(BaseModel):
+    txid: str
+    batch_transfer_idx: int
+
 class Media(BaseModel):
     """Model for list asset"""
     file_path: str
@@ -174,6 +178,29 @@ class AssetNia(BaseModel):
     balance: Balance
     media: Optional[Media]
 
+class AssetIfa(BaseModel):
+    asset_id: str
+    ticker: str
+    name: str
+    details: Optional[str]
+    precision: int
+    initial_supply: int
+    max_supply: int
+    known_circulating_supply: int
+    timestamp: int
+    added_at: int
+    balance: Balance
+    media: Optional[Media]
+    reject_list_url: Optional[str]
+
+class InflateAssetIfaRequestModel(BaseModel):
+    asset_id: str
+    inflation_amounts: list[int]
+    fee_rate: int = 5
+    min_confirmations: int = 1
+class InflateEndRequestModel(BaseModel):
+    signed_psbt: str
+
 class AssetModel(BaseModel):
     """Model for asset """
     asset_id: str
@@ -229,6 +256,11 @@ class IssueAssetNiaRequestModel(BaseModel):
     name: str
     precision: int = 0
 
+class IssueAssetIfaRequestModel(IssueAssetNiaRequestModel):
+    """Request model for issuing assets ifa."""
+    inflation_amounts: list[int]
+    replace_rights_num: int = 0
+    reject_list_url: Optional[str] = None
 
 class IssueAssetCfaRequestModelWithDigest(IssueAssetNiaRequestModel):
     """Request model for issuing assets."""
@@ -315,6 +347,7 @@ class GetAssetResponseModel(BaseModel):
     nia: list[AssetModel | None] | None = []
     uda: list[AssetModel | None] | None = []
     cfa: list[AssetModel | None] | None = []
+    ifa: list[AssetIfa | None] | None = []
 
 
 class IssueAssetResponseModel(AssetModel):

@@ -85,7 +85,7 @@ def create_wallet_instance(xpub_van: str,xpub_col: str,master_fingerprint:str):
         max_allocations_per_utxo=1,
         vanilla_keychain=vanilla_keychain,
         master_fingerprint=master_fingerprint,
-        supported_schemas=[AssetSchema.NIA,AssetSchema.CFA,AssetSchema.UDA]
+        supported_schemas=[AssetSchema.NIA,AssetSchema.CFA,AssetSchema.UDA,AssetSchema.IFA]
     )
     wallet = Wallet(wallet_data)
     print("prepere online",INDEXER_URL)
@@ -125,7 +125,7 @@ def restore_wallet_instance(xpub_van: str,xpub_col: str,master_fingerprint:str, 
         max_allocations_per_utxo=1,
         vanilla_keychain=vanilla_keychain,
         master_fingerprint=master_fingerprint,
-        supported_schemas=[AssetSchema.NIA,AssetSchema.CFA,AssetSchema.UDA]
+        supported_schemas=[AssetSchema.NIA,AssetSchema.CFA,AssetSchema.UDA,AssetSchema.IFA]
     )
     wallet = Wallet(wallet_data)
     online = wallet.go_online(False,INDEXER_URL)
@@ -156,7 +156,7 @@ def test_wallet_instance(xpub_van: str,xpub_col: str,mnemonic: str = None,master
         max_allocations_per_utxo=1,
         vanilla_keychain=vanilla_keychain,
         master_fingerprint=master_fingerprint,
-        supported_schemas=[AssetSchema.NIA,AssetSchema.CFA,AssetSchema.UDA]
+        supported_schemas=[AssetSchema.NIA,AssetSchema.CFA,AssetSchema.UDA,AssetSchema.IFA]
     )
     wallet = Wallet(wallet_data)
     online = wallet.go_online(False, INDEXER_URL)
@@ -187,7 +187,7 @@ def load_wallet_instance(xpub_van: str,xpub_col: str,master_fingerprint:str):
         max_allocations_per_utxo=1,
         vanilla_keychain=vanilla_keychain,
          master_fingerprint=master_fingerprint,
-        supported_schemas=[AssetSchema.NIA,AssetSchema.CFA,AssetSchema.UDA]
+        supported_schemas=[AssetSchema.NIA,AssetSchema.CFA,AssetSchema.UDA,AssetSchema.IFA]
     )
     wallet = Wallet(wallet_data)
     online = wallet.go_online(False, INDEXER_URL)
