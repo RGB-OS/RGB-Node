@@ -23,9 +23,15 @@ References:
 
 To simplify integration with the RGB Node from JavaScript/TypeScript backends, you can use the official client SDK:
 
-- `rgb-connect-nodejs`: a Node.js SDK that wraps the RGB Node API and common flows (invoice, UTXOs, PSBT build/sign/finalize, balances, transfers), making server integrations faster and more consistent. See the repository for usage examples and flow helpers: [`RGB-OS/rgb-connect-nodejs`](https://github.com/RGB-OS/rgb-connect-nodejs).
+- `rgb-sdk`: a Node.js SDK that wraps the RGB Node API and common flows (invoice, UTXOs, PSBT build/sign/finalize, balances, transfers), making server integrations faster and more consistent. See the repository for usage examples and flow helpers: [`RGB-OS/rgb-sdk`](https://github.com/RGB-OS/rgb-sdk).
 
-This SDK mirrors the API surface and patterns described here, and can be adapted to your signing setup (local mnemonic etc) and orchestration needs. It is well‑suited for building your own wallet backend or exchange integration. [Repository link](https://github.com/RGB-OS/rgb-connect-nodejs).
+This SDK mirrors the API surface and patterns described here, and can be adapted to your signing setup (local mnemonic etc) and orchestration needs. It is well‑suited for building your own wallet backend or exchange integration. [Repository link](https://github.com/RGB-OS/rgb-sdk).
+
+### WDK Wallet Integration
+
+This RGB Node is used by [`@utexo/wdk-wallet-rgb`](https://github.com/UTEXO-Protocol/wdk-wallet-rgb), which bridges the Wallet Development Kit (WDK) interfaces with the RGB ecosystem by wrapping the official `rgb-sdk` WalletManager API inside the familiar WDK abstractions. It handles key-derivation, account lifecycle, UTXO orchestration, asset issuance, transfers, and wallet backup flows while keeping the WDK ergonomics you already know. The library expects an RGB node and Bitcoin backend to be available, just like the upstream `rgb-sdk` tooling.
+
+For more information, see the [`@utexo/wdk-wallet-rgb` repository](https://github.com/UTEXO-Protocol/wdk-wallet-rgb).
 
 
 ## Features
@@ -387,7 +393,6 @@ The worker automatically:
 - Retries with exponential backoff on failures
 - Recovers active watchers on startup (if `ENABLE_RECOVERY=true`)
 
-**PostgreSQL Migration**: RGB Node now uses PostgreSQL instead of Redis for better durability and automatic recovery. See [POSTGRES_MIGRATION.md](./POSTGRES_MIGRATION.md) for migration details.
 
 For more details, see [REFRESH_WORKER.md](./REFRESH_WORKER.md).
 
