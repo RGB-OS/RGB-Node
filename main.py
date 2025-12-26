@@ -5,6 +5,8 @@ from src.errors import generic_exception_handler, rgb_lib_exception_handler
 from src.wallet_utils import WalletNotFoundError
 from fastapi import FastAPI,Request
 from src.routes import router 
+from src.lightning.routes import router as lightning_router
+from src.bitcoinl1.routes import router as deposit_router
 import rgb_lib
 
 
@@ -21,3 +23,5 @@ async def wallet_not_found_handler(request: Request, exc: WalletNotFoundError):
         content={"error": str(exc)}
     )
 app.include_router(router)
+app.include_router(lightning_router)
+app.include_router(deposit_router)
