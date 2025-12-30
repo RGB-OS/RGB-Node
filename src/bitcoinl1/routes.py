@@ -1,6 +1,6 @@
 """Deposit and UTEXO API routes with mock implementations."""
 from datetime import datetime, timedelta
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from src.bitcoinl1.model import (
     SingleUseDepositAddressResponse,
     UnusedDepositAddress,
@@ -91,18 +91,42 @@ async def withdraw_from_utexo(
     req: WithdrawFromUTEXORequestModel
 ) -> WithdrawFromUTEXOResponse:
     """
-    Withdraws BTC from the UTEXO layer back to Bitcoin L1.
+    Withdraws BTC or assets from the UTEXO layer back to Bitcoin L1.
     
-    This operation creates a Bitcoin transaction that releases funds from UTEXO 
-    to a specified on-chain address.
+    For BTC withdrawal: requires address_or_rgbinvoice (as address) and amount_sats.
+    For asset withdrawal: requires address_or_rgbinvoice (as RGB invoice starting with "rgb:") and asset field.
     """
     rln = get_rln_client()
-    txid = await rln.send_btc(
-        address=req.address,
-        amount=req.amount_sats,
-        fee_rate=req.fee_rate,
-        skip_sync=False
-    )
+    
+    if req.address_or_rgbinvoice.startswith("rgb:"):
+        if req.asset is None:
+            raise HTTPException(
+                status_code=400,
+                detail="asset is required when address_or_rgbinvoice is an RGB invoice"
+            )
+        if req.amount_sats is not None:
+            raise HTTPException(
+                status_code=400,
+                detail="amount_sats should not be provided when using RGB invoice"
+            )
+        txid = await rln.send_btc(
+            address=req.address_or_rgbinvoice,
+            amount=req.asset.amount,
+            fee_rate=req.fee_rate,
+            skip_sync=False
+        )
+    else:
+        if req.amount_sats is None:
+            raise HTTPException(
+                status_code=400,
+                detail="amount_sats is required for BTC withdrawal"
+            )
+        txid = await rln.send_btc(
+            address=req.address_or_rgbinvoice,
+            amount=req.amount_sats,
+            fee_rate=req.fee_rate,
+            skip_sync=False
+        )
     
     withdrawal_id = str(uuid.uuid4())
     

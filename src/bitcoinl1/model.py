@@ -1,6 +1,7 @@
 """Module containing models related to Deposit and UTEXO operations."""
 from typing import Optional, Literal
 from pydantic import BaseModel
+from src.lightning.model import LightningAsset
 
 
 class SingleUseDepositAddressResponse(BaseModel):
@@ -23,9 +24,10 @@ class UnusedDepositAddressesResponse(BaseModel):
 
 class WithdrawFromUTEXORequestModel(BaseModel):
     """Request model for withdrawing from UTEXO."""
-    address: str
-    amount_sats: int  # Using int instead of bigint for JSON compatibility
+    address_or_rgbinvoice: str
+    amount_sats: Optional[int] = None  # Required for BTC withdrawal
     fee_rate: int
+    asset: Optional[LightningAsset] = None  # Required for Asset withdrawal
 
 
 class WithdrawFromUTEXOResponse(BaseModel):
@@ -73,14 +75,10 @@ class AssetBalance(BaseModel):
     """Model for asset balance."""
     asset_id: str
     ticker: Optional[str] = None
-    # name: Optional[str] = None
-    # details: Optional[str] = None
+
     precision: int
-    # issued_supply: int
-    # timestamp: int
-    # added_at: int
     balance: Balance
-    # media: Optional[dict] = None
+
 
 
 class WalletBalanceResponse(BaseModel):

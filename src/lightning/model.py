@@ -36,7 +36,6 @@ class CreateLightningInvoiceRequestModel(BaseModel):
     """Request model for creating a Lightning invoice."""
     amount_sats: Optional[int] = None
     asset: Optional[LightningAsset] = None
-    description: Optional[str] = None
     expiry_seconds: Optional[int] = None
 
 

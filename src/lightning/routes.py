@@ -10,6 +10,7 @@ from src.lightning.model import (
     LightningReceiveRequest,
     LightningAsset,
 )
+from src.routes import SendAssetEndRequestModel
 from src.rln_client import get_rln_client
 import uuid
 
@@ -38,6 +39,74 @@ async def pay_lightning_invoice(
     invoice_data = await rln.decode_lightning_invoice(req.invoice)
     
     payment_response = await rln.send_payment(req.invoice)
+    
+    payment_hash = payment_response["payment_hash"]
+    rln_status = payment_response["status"]
+    
+    status_mapping = {
+        "Pending": "PENDING",
+        "Succeeded": "SUCCEEDED",
+        "Failed": "FAILED"
+    }
+    
+    mapped_status = status_mapping.get(rln_status, "PENDING")
+    
+    amt_msat = invoice_data.get("amt_msat", 0)
+    amount_sats = amt_msat // 1000 if amt_msat else None
+    
+    asset_id = invoice_data.get("asset_id")
+    asset_amount = invoice_data.get("asset_amount")
+    
+    payment_type = "ASSET" if asset_id and asset_amount else "BTC"
+    
+    asset = None
+    if payment_type == "ASSET" and asset_id and asset_amount:
+        asset = LightningAsset(asset_id=asset_id, amount=asset_amount)
+    
+    send_request = LightningSendRequest(
+        id=payment_hash,
+        status=mapped_status,
+        payment_type=payment_type,
+        amount_sats=amount_sats if asset is None else None,
+        asset=asset,
+        fee_sats=None,
+        created_at=datetime.utcnow().isoformat() + "Z"
+    )
+    
+    lightning_send_requests[payment_hash] = send_request
+    
+    return send_request
+
+
+@router.post("/pay-invoice-begin", response_model=str)
+async def pay_lightning_invoice_begin(
+    req: PayLightningInvoiceRequestModel
+) -> str:
+    """
+    Begins a Lightning invoice payment process.
+    
+    Returns the invoice string as a mock PSBT (later will be constructed base64 PSBT).
+    """
+    # For now, return the invoice string as mock PSBT
+    # Later this should construct and return a base64 PSBT
+    return req.invoice
+
+
+@router.post("/pay-invoice-end", response_model=LightningSendRequest)
+async def pay_lightning_invoice_end(
+    req: SendAssetEndRequestModel
+) -> LightningSendRequest:
+    """
+    Completes a Lightning invoice payment using signed PSBT.
+    
+    Works the same as pay-invoice but uses signed_psbt instead of invoice.
+    """
+    rln = get_rln_client()
+    
+    # Use signed_psbt as invoice for decoding and payment
+    invoice_data = await rln.decode_lightning_invoice(req.signed_psbt)
+    
+    payment_response = await rln.send_payment(req.signed_psbt)
     
     payment_hash = payment_response["payment_hash"]
     rln_status = payment_response["status"]
@@ -159,6 +228,8 @@ async def create_lightning_invoice(
             status_code=400,
             detail="amount_sats is required for all invoices (BTC and asset)"
         )
+    
+    rln = get_rln_client()
     
     payment_type = "ASSET" if req.asset else "BTC"
     

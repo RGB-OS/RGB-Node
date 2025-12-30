@@ -8,6 +8,14 @@ from src.routes import router
 from src.lightning.routes import router as lightning_router
 from src.bitcoinl1.routes import router as deposit_router
 import rgb_lib
+import logging
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
 
 
 
