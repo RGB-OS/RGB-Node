@@ -364,6 +364,30 @@ class RLNClient:
         
         data = await self._make_request("POST", "/decodelninvoice", timeout=30.0, json=payload)
         return data
+
+    async def decode_rgb_invoice(self, invoice: str) -> Dict[str, Any]:
+        """
+        Decode an RGB invoice to get its details.
+        
+        Args:
+            invoice: RGB invoice string (starts with "rgb:")
+            
+        Returns:
+            Dict[str, Any]: Decoded invoice data with recipient_id, recipient_type, asset_schema,
+            asset_id, assignment, network, expiration_timestamp, transport_endpoints
+            
+        Raises:
+            HTTPException: If the request fails
+        """
+        payload = {
+            "invoice": invoice
+        }
+        
+        logger.debug("Decoding RGB invoice on RLN node")
+        logger.debug(f"Payload: {payload}")
+        data = await self._make_request("POST", "/decodergbinvoice", timeout=30.0, json=payload)
+        logger.debug(f"Decode RGB invoice response: {data}")
+        return data
     
     async def get_btc_balance(self, skip_sync: bool = False) -> Dict[str, Any]:
         """
@@ -615,6 +639,67 @@ class RLNClient:
         data = await self._make_request("POST", "/failtransfers", timeout=30.0, json=payload)
         logger.debug(f"Fail transfers response: {data}")
         return data
+
+    async def send_asset(
+        self,
+        asset_id: str,
+        assignment: Dict[str, Any],
+        recipient_id: str,
+        witness_data: Optional[Dict[str, Any]] = None,
+        donation: bool = False,
+        fee_rate: int = 5,
+        min_confirmations: int = 1,
+        transport_endpoints: Optional[List[str]] = None,
+        skip_sync: bool = False
+    ) -> str:
+        """
+        Send an asset using RGB invoice or recipient ID.
+        
+        Args:
+            asset_id: Asset ID to send
+            assignment: Assignment object with type and value (e.g., {"type": "Fungible", "value": 42})
+            recipient_id: Recipient ID (e.g., "bcrt:utxob:...")
+            witness_data: Optional witness data with amount_sat and blinding
+            donation: Whether this is a donation
+            fee_rate: Fee rate for the transaction
+            min_confirmations: Minimum confirmations required
+            transport_endpoints: List of transport endpoints
+            skip_sync: Whether to skip wallet sync
+            
+        Returns:
+            str: Transaction ID (txid)
+            
+        Raises:
+            HTTPException: If the request fails
+        """
+        payload = {
+            "asset_id": asset_id,
+            "assignment": assignment,
+            "recipient_id": recipient_id,
+            "donation": donation,
+            "fee_rate": fee_rate,
+            "min_confirmations": min_confirmations,
+            "skip_sync": skip_sync
+        }
+        
+        if witness_data is not None:
+            payload["witness_data"] = witness_data
+        
+        if transport_endpoints is not None:
+            payload["transport_endpoints"] = transport_endpoints
+        
+        logger.debug("Sending asset on RLN node")
+        logger.debug(f"Payload: {payload}")
+        data = await self._make_request("POST", "/sendasset", timeout=60.0, json=payload)
+        logger.debug(f"Send asset response: {data}")
+        
+        txid = data.get("txid")
+        if not txid:
+            raise HTTPException(
+                status_code=500,
+                detail="Invalid response from RLN node: missing or empty 'txid' field"
+            )
+        return txid
 
 
 # Global RLN client instance

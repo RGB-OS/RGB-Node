@@ -19,9 +19,12 @@ logging.basicConfig(
 
 
 
-app = FastAPI(title="ThunderLink RGB Wallet API",
+app = FastAPI(
+    title="ThunderLink RGB Wallet API",
     version="1.0.0",
-    description="API documentation for RGB wallet management and asset transfers")
+    description="API documentation for RGB wallet management and asset transfers",
+    validate_response=False
+)
 app.add_exception_handler(rgb_lib.RgbLibError, rgb_lib_exception_handler)
 app.add_exception_handler(Exception, generic_exception_handler)
 @app.exception_handler(WalletNotFoundError)

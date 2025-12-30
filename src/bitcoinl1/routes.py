@@ -1,6 +1,8 @@
 """Deposit and UTEXO API routes with mock implementations."""
 from datetime import datetime, timedelta
 from fastapi import APIRouter, HTTPException
+import json
+import base64
 from src.bitcoinl1.model import (
     SingleUseDepositAddressResponse,
     UnusedDepositAddress,
@@ -23,6 +25,9 @@ from src.bitcoinl1.address_manager import (
     get_deposit_address
 )
 from src.bitcoinl1.settlement import settle_balances
+from src.bitcoinl1.withdrawal import withdraw_asset, withdraw_btc
+from src.bitcoinl1.watcher import start_watcher
+from src.routes import SendAssetEndRequestModel
 import uuid
 import os
 
@@ -86,6 +91,93 @@ async def get_unused_deposit_addresses() -> UnusedDepositAddressesResponse:
     )
 
 
+@router.post("/withdraw-begin", response_model=str)
+async def withdraw_begin(
+    req: WithdrawFromUTEXORequestModel
+) -> str:
+    """
+    Begins a withdrawal process.
+    
+    Returns the request encoded as base64 (mock PSBT).
+    Later this should construct and return a real base64 PSBT.
+    """
+    if req.address_or_rgbinvoice.startswith("rgb:"):
+        if req.asset is None:
+            raise HTTPException(
+                status_code=400,
+                detail="asset is required when address_or_rgbinvoice is an RGB invoice"
+            )
+    else:
+        if req.amount_sats is None:
+            raise HTTPException(
+                status_code=400,
+                detail="amount_sats is required for BTC withdrawal"
+            )
+    
+    request_dict = req.model_dump()
+    request_json = json.dumps(request_dict)
+    psbt_base64 = base64.b64encode(request_json.encode('utf-8')).decode('utf-8')
+    return psbt_base64
+
+
+@router.post("/withdraw-end", response_model=WithdrawFromUTEXOResponse)
+async def withdraw_end(
+    req: SendAssetEndRequestModel
+) -> WithdrawFromUTEXOResponse:
+    """
+    Completes a withdrawal using signed PSBT.
+    
+    Decodes the signed_psbt (base64) back to the original request
+    and continues with the withdrawal flow.
+    """
+    try:
+        request_json = base64.b64decode(req.signed_psbt.encode('utf-8')).decode('utf-8')
+        request_dict = json.loads(request_json)
+        withdraw_req = WithdrawFromUTEXORequestModel(**request_dict)
+    except Exception as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid signed_psbt format: {str(e)}"
+        )
+    
+    if withdraw_req.address_or_rgbinvoice.startswith("rgb:"):
+        if withdraw_req.asset is None:
+            raise HTTPException(
+                status_code=400,
+                detail="asset is required when address_or_rgbinvoice is an RGB invoice"
+            )
+        txid, batch_transfer_idx = await withdraw_asset(
+            rgb_invoice=withdraw_req.address_or_rgbinvoice,
+            asset=withdraw_req.asset,
+            fee_rate=withdraw_req.fee_rate
+        )
+        
+        if batch_transfer_idx is not None:
+            start_watcher(batch_transfer_idx)
+    else:
+        if withdraw_req.amount_sats is None:
+            raise HTTPException(
+                status_code=400,
+                detail="amount_sats is required for BTC withdrawal"
+            )
+        txid = await withdraw_btc(
+            address=withdraw_req.address_or_rgbinvoice,
+            amount_sats=withdraw_req.amount_sats,
+            fee_rate=withdraw_req.fee_rate
+        )
+    
+    withdrawal_id = str(uuid.uuid4())
+    
+    withdrawal = WithdrawFromUTEXOResponse(
+        withdrawal_id=withdrawal_id,
+        txid=txid
+    )
+    
+    withdrawals[withdrawal_id] = withdrawal
+    
+    return withdrawal
+
+
 @router.post("/withdraw-from-utexo", response_model=WithdrawFromUTEXOResponse)
 async def withdraw_from_utexo(
     req: WithdrawFromUTEXORequestModel
@@ -96,36 +188,31 @@ async def withdraw_from_utexo(
     For BTC withdrawal: requires address_or_rgbinvoice (as address) and amount_sats.
     For asset withdrawal: requires address_or_rgbinvoice (as RGB invoice starting with "rgb:") and asset field.
     """
-    rln = get_rln_client()
-    
     if req.address_or_rgbinvoice.startswith("rgb:"):
         if req.asset is None:
             raise HTTPException(
                 status_code=400,
                 detail="asset is required when address_or_rgbinvoice is an RGB invoice"
             )
-        if req.amount_sats is not None:
-            raise HTTPException(
-                status_code=400,
-                detail="amount_sats should not be provided when using RGB invoice"
-            )
-        txid = await rln.send_btc(
-            address=req.address_or_rgbinvoice,
-            amount=req.asset.amount,
-            fee_rate=req.fee_rate,
-            skip_sync=False
+        txid, batch_transfer_idx = await withdraw_asset(
+            rgb_invoice=req.address_or_rgbinvoice,
+            asset=req.asset,
+            fee_rate=req.fee_rate
         )
+        
+        # Start watcher for asset transfer if batch_transfer_idx is available
+        if batch_transfer_idx is not None:
+            start_watcher(batch_transfer_idx)
     else:
         if req.amount_sats is None:
             raise HTTPException(
                 status_code=400,
                 detail="amount_sats is required for BTC withdrawal"
             )
-        txid = await rln.send_btc(
+        txid = await withdraw_btc(
             address=req.address_or_rgbinvoice,
-            amount=req.amount_sats,
-            fee_rate=req.fee_rate,
-            skip_sync=False
+            amount_sats=req.amount_sats,
+            fee_rate=req.fee_rate
         )
     
     withdrawal_id = str(uuid.uuid4())
