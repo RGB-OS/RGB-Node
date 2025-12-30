@@ -13,7 +13,7 @@ class SingleUseDepositAddressResponse(BaseModel):
 class UnusedDepositAddress(BaseModel):
     """Model for unused deposit address."""
     address: str
-    created_at: str
+    created_at: int
 
 
 class UnusedDepositAddressesResponse(BaseModel):

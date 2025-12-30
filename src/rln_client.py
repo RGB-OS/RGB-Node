@@ -414,7 +414,7 @@ class RLNClient:
         self,
         min_confirmations: int = 1,
         duration_seconds: int = 86400,
-        witness: bool = True
+        witness: bool = False
     ) -> Dict[str, Any]:
         """
         Create an RGB invoice for receiving assets.
@@ -585,6 +585,35 @@ class RLNClient:
         logger.debug(f"Payload: {payload}")
         data = await self._make_request("POST", "/listtransactions", timeout=30.0, json=payload)
         logger.debug(f"Transactions response: {data}")
+        return data
+
+    async def fail_transfers(
+        self,
+        batch_transfer_idx: int,
+        no_asset_only: bool = False,
+        skip_sync: bool = False
+    ) -> Dict[str, Any]:
+        """
+        Fail transfers for a given batch transfer index.
+        
+        Args:
+            batch_transfer_idx: Batch transfer index
+            no_asset_only: Whether to fail only non-asset transfers
+            skip_sync: Whether to skip sync
+            
+        Returns:
+            Response with transfers_changed status
+        """
+        payload = {
+            "batch_transfer_idx": batch_transfer_idx,
+            "no_asset_only": no_asset_only,
+            "skip_sync": skip_sync
+        }
+        
+        logger.debug("Failing transfers on RLN node")
+        logger.debug(f"Payload: {payload}")
+        data = await self._make_request("POST", "/failtransfers", timeout=30.0, json=payload)
+        logger.debug(f"Fail transfers response: {data}")
         return data
 
 

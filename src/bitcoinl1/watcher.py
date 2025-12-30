@@ -11,10 +11,26 @@ logger = logging.getLogger(__name__)
 active_watchers: dict[int, asyncio.Task] = {}
 
 
+def cleanup_cached_invoice():
+    """
+    Clean up cached invoice from tempstorage.
+    """
+    try:
+        from src.bitcoinl1 import tempstorage
+        tempstorage.cached_asset_invoice = None
+        tempstorage.cached_expires_at = None
+        tempstorage.cached_batch_transfer_idx = None
+        tempstorage.cached_invoice_created_at = None
+        logger.info("Cleaned up cached invoice")
+    except Exception as e:
+        logger.warning(f"Error cleaning up cached invoice: {e}")
+
+
 async def watch_transfer_status(batch_transfer_idx: int):
     """
     Background watcher that polls transfer status every 40 seconds.
     Stops when transfer status is 'Settled' or 'Failed', or after 1 hour max.
+    Fails transfers if 1 hour exceeded and cleans up cached invoice.
     
     Args:
         batch_transfer_idx: The transfer index to watch
@@ -33,10 +49,22 @@ async def watch_transfer_status(batch_transfer_idx: int):
     
     try:
         while True:
-            # Check if max time exceeded
+            # Check if max time exceeded (1 hour)
             elapsed = datetime.utcnow() - start_time
             if elapsed >= max_duration:
                 logger.info(f"Watcher for transfer idx={batch_transfer_idx} stopped: max duration (1 hour) exceeded")
+                # Fail the transfers since 1 hour has passed
+                try:
+                    await rln.fail_transfers(
+                        batch_transfer_idx=batch_transfer_idx,
+                        no_asset_only=False,
+                        skip_sync=False
+                    )
+                    logger.info(f"Failed transfers for idx={batch_transfer_idx} after 1 hour expiration")
+                except Exception as e:
+                    logger.error(f"Error failing transfers for idx={batch_transfer_idx}: {e}")
+                # Clean up cached invoice
+                cleanup_cached_invoice()
                 break
             
             # Refresh transfers
@@ -63,6 +91,8 @@ async def watch_transfer_status(batch_transfer_idx: int):
                     
                     if status in ["Settled", "Failed"]:
                         logger.info(f"Watcher for transfer idx={batch_transfer_idx} stopped: status={status}")
+                        # Clean up cached invoice when settled or failed
+                        cleanup_cached_invoice()
                         break
                 else:
                     logger.debug(f"Transfer idx={batch_transfer_idx} not found in transfers list")
