@@ -84,7 +84,55 @@ async def get_lightning_send_request(request_id: str) -> Optional[LightningSendR
     
     Works for both BTC and asset payments.
     """
-    return lightning_send_requests.get(request_id)
+    rln = get_rln_client()
+    
+    try:
+        payment_data = await rln.get_payment(request_id)
+        payment = payment_data.get("payment")
+        
+        if not payment:
+            return None
+        
+        rln_status = payment.get("status", "")
+        status_mapping = {
+            "Succeeded": "SUCCEEDED",
+            "Pending": "PENDING",
+            "Failed": "FAILED"
+        }
+        mapped_status = status_mapping.get(rln_status, "PENDING")
+        
+        amt_msat = payment.get("amt_msat", 0)
+        amount_sats = amt_msat // 1000 if amt_msat else None
+        
+        asset_id = payment.get("asset_id")
+        asset_amount = payment.get("asset_amount")
+        payment_type = "ASSET" if asset_id and asset_amount else "BTC"
+        
+        asset = None
+        if payment_type == "ASSET" and asset_id and asset_amount:
+            asset = LightningAsset(asset_id=asset_id, amount=asset_amount)
+        
+        created_at_timestamp = payment.get("created_at", 0)
+        if created_at_timestamp:
+            created_at = datetime.utcfromtimestamp(created_at_timestamp).isoformat() + "Z"
+        else:
+            created_at = datetime.utcnow().isoformat() + "Z"
+        
+        return LightningSendRequest(
+            id=payment.get("payment_hash", request_id),
+            status=mapped_status,
+            payment_type=payment_type,
+            amount_sats=amount_sats if asset is None else None,
+            asset=asset,
+            fee_sats=None,
+            created_at=created_at
+        )
+    except HTTPException as e:
+        if e.status_code == 404:
+            return None
+        raise
+    except Exception as e:
+        return None
 
 
 @router.post("/fee-estimate", response_model=int)
@@ -117,8 +165,7 @@ async def create_lightning_invoice(
     amt_msat = req.amount_sats * 1000
     
     expiry_sec = req.expiry_seconds or 420
-    
-    rln = get_rln_client()
+
     invoice = await rln.create_lightning_invoice(
         amt_msat=amt_msat,
         expiry_sec=expiry_sec,

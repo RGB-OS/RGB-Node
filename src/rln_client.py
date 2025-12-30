@@ -409,6 +409,183 @@ class RLNClient:
         data = await self._make_request("POST", "/listassets", timeout=30.0, json=payload)
         logger.debug(f"Assets response: {data}")
         return data
+    
+    async def create_rgb_invoice(
+        self,
+        min_confirmations: int = 1,
+        duration_seconds: int = 86400,
+        witness: bool = True
+    ) -> Dict[str, Any]:
+        """
+        Create an RGB invoice for receiving assets.
+        
+        Args:
+            min_confirmations: Minimum confirmations required
+            duration_seconds: Invoice expiration duration in seconds
+            witness: Whether to create a witness invoice
+            
+        Returns:
+            Dict[str, Any]: Invoice data with recipient_id, invoice, expiration_timestamp, batch_transfer_idx
+            
+        Raises:
+            HTTPException: If the request fails
+        """
+        payload = {
+            "min_confirmations": min_confirmations,
+            "duration_seconds": duration_seconds,
+            "witness": witness
+        }
+        
+        logger.debug("Creating RGB invoice")
+        logger.debug(f"Payload: {payload}")
+        data = await self._make_request("POST", "/rgbinvoice", timeout=30.0, json=payload)
+        logger.debug(f"RGB invoice response: {data}")
+        return data
+    
+    async def list_channels(self) -> Dict[str, Any]:
+        """
+        List Lightning channels from the RLN node.
+        
+        Returns:
+            Dict[str, Any]: Channels data with channels array
+            
+        Raises:
+            HTTPException: If the request fails
+        """
+        logger.debug("Listing channels from RLN node")
+        data = await self._make_request("GET", "/listchannels", timeout=30.0)
+        logger.debug(f"Channels response: {data}")
+        return data
+    
+    async def list_transfers(self, asset_id: str) -> Dict[str, Any]:
+        """
+        List transfers for a specific asset from the RLN node.
+        
+        Args:
+            asset_id: Asset ID to list transfers for
+            
+        Returns:
+            Dict[str, Any]: Transfers data with transfers array
+            
+        Raises:
+            HTTPException: If the request fails
+        """
+        payload = {
+            "asset_id": asset_id
+        }
+        
+        logger.debug("Listing transfers from RLN node")
+        logger.debug(f"Payload: {payload}")
+        data = await self._make_request("POST", "/listtransfers", timeout=30.0, json=payload)
+        logger.debug(f"Transfers response: {data}")
+        return data
+    
+    async def refresh_transfers(self, skip_sync: bool = False) -> Dict[str, Any]:
+        """
+        Refresh transfers on the RLN node.
+        
+        Args:
+            skip_sync: Whether to skip wallet sync
+            
+        Returns:
+            Dict[str, Any]: Response from refresh operation
+            
+        Raises:
+            HTTPException: If the request fails
+        """
+        payload = {
+            "skip_sync": skip_sync
+        }
+        
+        logger.debug("Refreshing transfers on RLN node")
+        logger.debug(f"Payload: {payload}")
+        data = await self._make_request("POST", "/refreshtransfers", timeout=30.0, json=payload)
+        logger.debug(f"Refresh transfers response: {data}")
+        return data
+    
+    async def open_channel(self, channel_config: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Open a Lightning channel on the RLN node.
+        
+        Args:
+            channel_config: Channel configuration dictionary with fields like:
+                - peer_pubkey_and_opt_addr
+                - capacity_sat
+                - push_msat
+                - public
+                - with_anchors
+                - fee_base_msat
+                - fee_proportional_millionths
+                - temporary_channel_id
+                - asset_id (optional, for asset channels)
+                - asset_amount (optional, for asset channels)
+                
+        Returns:
+            Dict[str, Any]: Response from open channel operation
+            
+        Raises:
+            HTTPException: If the request fails
+        """
+        logger.debug("Opening channel on RLN node")
+        logger.debug(f"Channel config: {channel_config}")
+        data = await self._make_request("POST", "/openchannel", timeout=60.0, json=channel_config)
+        logger.debug(f"Open channel response: {data}")
+        return data
+    
+    async def get_payment(self, payment_hash: str) -> Dict[str, Any]:
+        """
+        Get payment status from the RLN node.
+        
+        Args:
+            payment_hash: Payment hash to query
+            
+        Returns:
+            Dict[str, Any]: Payment data with payment object containing:
+                - amt_msat
+                - asset_amount
+                - asset_id
+                - payment_hash
+                - inbound
+                - status
+                - created_at
+                - updated_at
+                - payee_pubkey
+                
+        Raises:
+            HTTPException: If the request fails
+        """
+        payload = {
+            "payment_hash": payment_hash
+        }
+        
+        logger.debug("Getting payment status from RLN node")
+        logger.debug(f"Payload: {payload}")
+        data = await self._make_request("POST", "/getpayment", timeout=30.0, json=payload)
+        logger.debug(f"Payment response: {data}")
+        return data
+    
+    async def list_transactions(self, skip_sync: bool = False) -> Dict[str, Any]:
+        """
+        List transactions from the RLN node.
+        
+        Args:
+            skip_sync: Whether to skip wallet sync
+            
+        Returns:
+            Dict[str, Any]: Transactions data with transactions array
+            
+        Raises:
+            HTTPException: If the request fails
+        """
+        payload = {
+            "skip_sync": skip_sync
+        }
+        
+        logger.debug("Listing transactions from RLN node")
+        logger.debug(f"Payload: {payload}")
+        data = await self._make_request("POST", "/listtransactions", timeout=30.0, json=payload)
+        logger.debug(f"Transactions response: {data}")
+        return data
 
 
 # Global RLN client instance
