@@ -16,6 +16,11 @@ from src.bitcoinl1.model import (
     AssetBalance,
     OffchainBalance,
     OffchainBalanceDetail,
+    WithdrawRequestModel,
+    WithdrawResponse,
+    GetWithdrawalResponse,
+    WithdrawalState,
+    WithdrawalStatus,
 )
 from src.rln_client import get_rln_client
 from src.bitcoinl1.address_manager import (
@@ -27,9 +32,16 @@ from src.bitcoinl1.address_manager import (
 from src.bitcoinl1.settlement import settle_balances
 from src.bitcoinl1.withdrawal import withdraw_asset, withdraw_btc
 from src.bitcoinl1.watcher import start_watcher
+from src.bitcoinl1.withdrawal_storage import (
+    get_withdrawal,
+    get_withdrawal_by_idempotency_key,
+    save_withdrawal
+)
+from src.bitcoinl1.withdrawal_orchestrator import process_withdrawal
 from src.routes import SendAssetEndRequestModel
 import uuid
 import os
+import asyncio
 
 router = APIRouter(prefix="/wallet", tags=["Deposit & UTEXO"])
 
@@ -301,4 +313,89 @@ async def settle():
     - Opens asset channels for each asset with offchain_outbound < spendable
     """
     return await settle_balances()
+
+
+@router.post("/withdraw", response_model=WithdrawResponse)
+async def withdraw(req: WithdrawRequestModel) -> WithdrawResponse:
+    """
+    Withdraw funds from the wallet.
+    
+    Orchestrates channel closing and sweeping to destination address.
+    For now, only handles channels_only case.
+    """
+    # Generate idempotency key based on request parameters
+    import hashlib
+    import json
+    request_hash = hashlib.sha256(
+        json.dumps(req.model_dump(), sort_keys=True).encode()
+    ).hexdigest()
+    idempotency_key = f"withdraw_{request_hash}"
+    
+    # Check for existing withdrawal with same idempotency_key
+    existing = get_withdrawal_by_idempotency_key(idempotency_key)
+    if existing:
+        return WithdrawResponse(
+            withdrawal_id=existing.withdrawal_id,
+            status=existing.status
+        )
+    
+    # Create new withdrawal
+    withdrawal_id = str(uuid.uuid4())
+    now = int(datetime.utcnow().timestamp())
+    
+    withdrawal = WithdrawalState(
+        withdrawal_id=withdrawal_id,
+        idempotency_key=idempotency_key,
+        address=req.address,
+        amount_sats_requested=req.amount_sats,
+        source=req.source,
+        channel_ids_to_close=req.channel_ids or [],
+        fee_rate_sat_per_vb=req.fee_rate_sat_per_vb,
+        close_mode=req.close_mode,
+        deduct_fee_from_amount=req.deduct_fee_from_amount,
+        status=WithdrawalStatus.REQUESTED,
+        created_at=now,
+        updated_at=now
+    )
+    
+    save_withdrawal(withdrawal)
+    
+    # Start processing in background
+    asyncio.create_task(process_withdrawal(withdrawal_id))
+    
+    return WithdrawResponse(
+        withdrawal_id=withdrawal_id,
+        status=WithdrawalStatus.REQUESTED
+    )
+
+
+@router.get("/withdraw/{withdrawal_id}", response_model=GetWithdrawalResponse)
+async def get_withdrawal_status(withdrawal_id: str) -> GetWithdrawalResponse:
+    """
+    Get withdrawal status by ID.
+    """
+    withdrawal = get_withdrawal(withdrawal_id)
+    if not withdrawal:
+        raise HTTPException(
+            status_code=404,
+            detail="Withdrawal not found"
+        )
+    
+    return GetWithdrawalResponse(
+        withdrawal_id=withdrawal.withdrawal_id,
+        status=withdrawal.status,
+        address=withdrawal.address,
+        amount_sats_requested=withdrawal.amount_sats_requested,
+        amount_sats_sent=withdrawal.amount_sats_sent,
+        close_txids=withdrawal.close_txids,
+        sweep_txid=withdrawal.sweep_txid,
+        fee_sats=withdrawal.fee_sats,
+        timestamps={
+            "created_at": withdrawal.created_at,
+            "updated_at": withdrawal.updated_at
+        },
+        error_code=withdrawal.error_code,
+        error_message=withdrawal.error_message,
+        retryable=withdrawal.retryable
+    )
 

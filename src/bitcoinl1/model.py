@@ -1,5 +1,6 @@
 """Module containing models related to Deposit and UTEXO operations."""
 from typing import Optional, Literal
+from enum import Enum
 from pydantic import BaseModel
 from src.lightning.model import LightningAsset
 
@@ -34,6 +35,78 @@ class WithdrawFromUTEXOResponse(BaseModel):
     """Response model for UTEXO withdrawal."""
     withdrawal_id: str
     txid: Optional[str] = None
+
+
+class WithdrawalStatus(str, Enum):
+    """Withdrawal status enum."""
+    REQUESTED = "REQUESTED"
+    CLOSING_CHANNELS = "CLOSING_CHANNELS"
+    WAITING_CLOSE_CONFIRMATIONS = "WAITING_CLOSE_CONFIRMATIONS"
+    WAITING_BALANCE_UPDATE = "WAITING_BALANCE_UPDATE"
+    SWEEPING_OUTPUTS = "SWEEPING_OUTPUTS"
+    BROADCASTED = "BROADCASTED"
+    CONFIRMED = "CONFIRMED"
+    FAILED = "FAILED"
+
+
+class WithdrawRequestModel(BaseModel):
+    """Request model for withdraw orchestrator."""
+    address: str
+    amount_sats: Optional[int] = None
+    source: Literal["onchain_only", "channels_only", "auto"] = "auto"
+    channel_ids: Optional[list[str]] = None
+    close_mode: Literal["cooperative", "force"] = "cooperative"
+    fee_rate_sat_per_vb: Optional[int] = None
+    deduct_fee_from_amount: bool = True
+
+
+class WithdrawResponse(BaseModel):
+    """Response model for withdraw request."""
+    withdrawal_id: str
+    status: WithdrawalStatus
+
+
+class WithdrawalState(BaseModel):
+    """Model for withdrawal state storage."""
+    withdrawal_id: str
+    idempotency_key: str
+    address: str
+    amount_sats_requested: Optional[int]
+    amount_sats_sent: Optional[int] = None
+    source: str
+    channel_ids_to_close: list[str] = []
+    close_txids: list[str] = []
+    sweep_txid: Optional[str] = None
+    fee_sats: Optional[int] = None
+    fee_rate_sat_per_vb: Optional[int] = None
+    close_mode: str = "cooperative"
+    deduct_fee_from_amount: bool = True
+    baseline_balance_sats: Optional[int] = None  # Balance before closing channels
+    balance_wait_started_at: Optional[int] = None  # When we started waiting for balance update
+    status: WithdrawalStatus
+    error_code: Optional[str] = None
+    error_message: Optional[str] = None
+    retryable: bool = False
+    attempt_count: int = 0
+    last_attempt_at: Optional[int] = None
+    created_at: int
+    updated_at: int
+
+
+class GetWithdrawalResponse(BaseModel):
+    """Response model for getting withdrawal status."""
+    withdrawal_id: str
+    status: WithdrawalStatus
+    address: str
+    amount_sats_requested: Optional[int]
+    amount_sats_sent: Optional[int] = None
+    close_txids: list[str] = []
+    sweep_txid: Optional[str] = None
+    fee_sats: Optional[int] = None
+    timestamps: dict[str, int]
+    error_code: Optional[str] = None
+    error_message: Optional[str] = None
+    retryable: bool = False
 
 
 class BtcBalance(BaseModel):
