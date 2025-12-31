@@ -701,6 +701,38 @@ class RLNClient:
             )
         return txid
 
+    async def close_channel(
+        self,
+        channel_id: str,
+        peer_pubkey: str,
+        force: bool = True
+    ) -> Dict[str, Any]:
+        """
+        Close a Lightning channel.
+        
+        Args:
+            channel_id: Channel ID to close
+            peer_pubkey: Peer public key
+            force: Whether to force close the channel
+            
+        Returns:
+            Dict[str, Any]: Empty response dict
+            
+        Raises:
+            HTTPException: If the request fails
+        """
+        payload = {
+            "channel_id": channel_id,
+            "peer_pubkey": peer_pubkey,
+            "force": force
+        }
+        
+        logger.debug("Closing channel on RLN node")
+        logger.debug(f"Payload: {payload}")
+        data = await self._make_request("POST", "/closechannel", timeout=60.0, json=payload)
+        logger.debug(f"Close channel response: {data}")
+        return data
+
 
 # Global RLN client instance
 _rln_client: Optional[RLNClient] = None
