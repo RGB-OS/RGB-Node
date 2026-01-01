@@ -241,30 +241,51 @@ async def withdraw_end(
                 status_code=400,
                 detail="asset is required when address_or_rgbinvoice is an RGB invoice"
             )
-        # For now, asset withdrawals use the old flow (not orchestrator)
-        # TODO: Implement asset withdrawal orchestrator
-        txid, batch_transfer_idx = await withdraw_asset(
-            rgb_invoice=withdraw_req.address_or_rgbinvoice,
-            asset=withdraw_req.asset,
-            fee_rate=withdraw_req.fee_rate
-        )
         
-        if batch_transfer_idx is not None:
-            start_watcher(batch_transfer_idx)
+        # Use orchestrator for asset withdrawals
+        # Generate idempotency key based on request parameters
+        request_hash = hashlib.sha256(
+            json.dumps(withdraw_req.model_dump(), sort_keys=True).encode()
+        ).hexdigest()
+        idempotency_key = f"withdraw_{request_hash}"
         
+        # Check for existing withdrawal with same idempotency_key
+        existing = get_withdrawal_by_idempotency_key(idempotency_key)
+        if existing:
+            return WithdrawResponse(
+                withdrawal_id=existing.withdrawal_id,
+                status=existing.status
+            )
+        
+        # Create new withdrawal
         withdrawal_id = str(uuid.uuid4())
-        withdrawal_response = WithdrawFromUTEXOResponse(
+        now = int(datetime.utcnow().timestamp())
+        
+        withdrawal = WithdrawalState(
             withdrawal_id=withdrawal_id,
-            txid=txid
+            idempotency_key=idempotency_key,
+            address_or_rgbinvoice=withdraw_req.address_or_rgbinvoice,
+            amount_sats_requested=None,  # Not applicable for assets
+            asset=withdraw_req.asset,
+            source=withdraw_req.source,
+            channel_ids_to_close=withdraw_req.channel_ids or [],
+            fee_rate_sat_per_vb=None,  # Not applicable for assets
+            fee_rate=withdraw_req.fee_rate,
+            close_mode=withdraw_req.close_mode,
+            deduct_fee_from_amount=withdraw_req.deduct_fee_from_amount,
+            status=WithdrawalStatus.REQUESTED,
+            created_at=now,
+            updated_at=now
         )
         
-        # Store in old withdrawals dict for compatibility
-        withdrawals[withdrawal_id] = withdrawal_response
+        save_withdrawal(withdrawal)
         
-        # Return as orchestrator response for consistency
+        # Start processing in background
+        asyncio.create_task(process_withdrawal(withdrawal_id))
+        
         return WithdrawResponse(
             withdrawal_id=withdrawal_id,
-            status=WithdrawalStatus.BROADCASTED
+            status=WithdrawalStatus.REQUESTED
         )
     else:
         # BTC flow - amount_sats is required

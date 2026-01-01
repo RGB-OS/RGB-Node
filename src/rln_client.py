@@ -701,6 +701,29 @@ class RLNClient:
             )
         return txid
 
+    async def get_asset_balance(self, asset_id: str) -> Dict[str, Any]:
+        """
+        Get asset balance from the RLN node.
+        
+        Args:
+            asset_id: Asset ID to get balance for
+            
+        Returns:
+            Dict[str, Any]: Asset balance with settled, future, spendable, offchain_outbound, offchain_inbound
+            
+        Raises:
+            HTTPException: If the request fails
+        """
+        payload = {
+            "asset_id": asset_id
+        }
+        
+        logger.debug("Getting asset balance from RLN node")
+        logger.debug(f"Payload: {payload}")
+        data = await self._make_request("POST", "/assetbalance", timeout=30.0, json=payload)
+        logger.debug(f"Asset balance response: {data}")
+        return data
+
     async def close_channel(
         self,
         channel_id: str,
