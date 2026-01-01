@@ -77,7 +77,7 @@ async def process_withdrawal(withdrawal_id: str) -> None:
         logger.error(f"Withdrawal {withdrawal_id} not found")
         return
     
-    logger.info(f"Withdrawal {withdrawal_id}: status={withdrawal.status}, address={withdrawal.address}, amount={withdrawal.amount_sats_requested}")
+    logger.info(f"Withdrawal {withdrawal_id}: status={withdrawal.status}, address_or_rgbinvoice={withdrawal.address_or_rgbinvoice}, amount={withdrawal.amount_sats_requested}")
     
     rln = get_rln_client()
     
@@ -286,7 +286,7 @@ async def process_withdrawal(withdrawal_id: str) -> None:
                 return
         
         if withdrawal.status == WithdrawalStatus.SWEEPING_OUTPUTS:
-            logger.info(f"Withdrawal {withdrawal_id}: Starting to sweep outputs to {withdrawal.address}")
+            logger.info(f"Withdrawal {withdrawal_id}: Starting to sweep outputs to {withdrawal.address_or_rgbinvoice}")
             # Sweep outputs to address
             try:
                 # Get current balance to determine amount
@@ -319,9 +319,9 @@ async def process_withdrawal(withdrawal_id: str) -> None:
                 logger.info(f"Withdrawal {withdrawal_id}: Using fee_rate: {fee_rate} sat/vb")
                 
                 # Send BTC
-                logger.info(f"Withdrawal {withdrawal_id}: Sending {amount_sats} sats to {withdrawal.address}")
+                logger.info(f"Withdrawal {withdrawal_id}: Sending {amount_sats} sats to {withdrawal.address_or_rgbinvoice}")
                 txid = await rln.send_btc(
-                    address=withdrawal.address,
+                    address=withdrawal.address_or_rgbinvoice,
                     amount=amount_sats,
                     fee_rate=fee_rate,
                     skip_sync=False

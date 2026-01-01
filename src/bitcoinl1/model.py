@@ -51,8 +51,10 @@ class WithdrawalStatus(str, Enum):
 
 class WithdrawRequestModel(BaseModel):
     """Request model for withdraw orchestrator."""
-    address: str
-    amount_sats: Optional[int] = None
+    address_or_rgbinvoice: str
+    amount_sats: Optional[int] = None  # Required for BTC withdrawal
+    asset: Optional[LightningAsset] = None  # Required for Asset withdrawal
+    fee_rate: int
     source: Literal["onchain_only", "channels_only", "auto"] = "auto"
     channel_ids: Optional[list[str]] = None
     close_mode: Literal["cooperative", "force"] = "cooperative"
@@ -70,15 +72,17 @@ class WithdrawalState(BaseModel):
     """Model for withdrawal state storage."""
     withdrawal_id: str
     idempotency_key: str
-    address: str
+    address_or_rgbinvoice: str
     amount_sats_requested: Optional[int]
     amount_sats_sent: Optional[int] = None
+    asset: Optional[LightningAsset] = None
     source: str
     channel_ids_to_close: list[str] = []
     close_txids: list[str] = []
     sweep_txid: Optional[str] = None
     fee_sats: Optional[int] = None
     fee_rate_sat_per_vb: Optional[int] = None
+    fee_rate: Optional[int] = None
     close_mode: str = "cooperative"
     deduct_fee_from_amount: bool = True
     baseline_balance_sats: Optional[int] = None  # Balance before closing channels
@@ -97,9 +101,10 @@ class GetWithdrawalResponse(BaseModel):
     """Response model for getting withdrawal status."""
     withdrawal_id: str
     status: WithdrawalStatus
-    address: str
+    address_or_rgbinvoice: str
     amount_sats_requested: Optional[int]
     amount_sats_sent: Optional[int] = None
+    asset: Optional[LightningAsset] = None
     close_txids: list[str] = []
     sweep_txid: Optional[str] = None
     fee_sats: Optional[int] = None

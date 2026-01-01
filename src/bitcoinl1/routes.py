@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 from fastapi import APIRouter, HTTPException
 import json
 import base64
+import hashlib
 from src.bitcoinl1.model import (
     SingleUseDepositAddressResponse,
     UnusedDepositAddress,
@@ -22,6 +23,7 @@ from src.bitcoinl1.model import (
     WithdrawalState,
     WithdrawalStatus,
 )
+from src.lightning.model import LightningAsset
 from src.rln_client import get_rln_client
 from src.bitcoinl1.address_manager import (
     get_or_create_address,
@@ -103,142 +105,6 @@ async def get_unused_deposit_addresses() -> UnusedDepositAddressesResponse:
     )
 
 
-@router.post("/withdraw-begin", response_model=str)
-async def withdraw_begin(
-    req: WithdrawFromUTEXORequestModel
-) -> str:
-    """
-    Begins a withdrawal process.
-    
-    Returns the request encoded as base64 (mock PSBT).
-    Later this should construct and return a real base64 PSBT.
-    """
-    if req.address_or_rgbinvoice.startswith("rgb:"):
-        if req.asset is None:
-            raise HTTPException(
-                status_code=400,
-                detail="asset is required when address_or_rgbinvoice is an RGB invoice"
-            )
-    else:
-        if req.amount_sats is None:
-            raise HTTPException(
-                status_code=400,
-                detail="amount_sats is required for BTC withdrawal"
-            )
-    
-    request_dict = req.model_dump()
-    request_json = json.dumps(request_dict)
-    psbt_base64 = base64.b64encode(request_json.encode('utf-8')).decode('utf-8')
-    return psbt_base64
-
-
-@router.post("/withdraw-end", response_model=WithdrawFromUTEXOResponse)
-async def withdraw_end(
-    req: SendAssetEndRequestModel
-) -> WithdrawFromUTEXOResponse:
-    """
-    Completes a withdrawal using signed PSBT.
-    
-    Decodes the signed_psbt (base64) back to the original request
-    and continues with the withdrawal flow.
-    """
-    try:
-        request_json = base64.b64decode(req.signed_psbt.encode('utf-8')).decode('utf-8')
-        request_dict = json.loads(request_json)
-        withdraw_req = WithdrawFromUTEXORequestModel(**request_dict)
-    except Exception as e:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid signed_psbt format: {str(e)}"
-        )
-    
-    if withdraw_req.address_or_rgbinvoice.startswith("rgb:"):
-        if withdraw_req.asset is None:
-            raise HTTPException(
-                status_code=400,
-                detail="asset is required when address_or_rgbinvoice is an RGB invoice"
-            )
-        txid, batch_transfer_idx = await withdraw_asset(
-            rgb_invoice=withdraw_req.address_or_rgbinvoice,
-            asset=withdraw_req.asset,
-            fee_rate=withdraw_req.fee_rate
-        )
-        
-        if batch_transfer_idx is not None:
-            start_watcher(batch_transfer_idx)
-    else:
-        if withdraw_req.amount_sats is None:
-            raise HTTPException(
-                status_code=400,
-                detail="amount_sats is required for BTC withdrawal"
-            )
-        txid = await withdraw_btc(
-            address=withdraw_req.address_or_rgbinvoice,
-            amount_sats=withdraw_req.amount_sats,
-            fee_rate=withdraw_req.fee_rate
-        )
-    
-    withdrawal_id = str(uuid.uuid4())
-    
-    withdrawal = WithdrawFromUTEXOResponse(
-        withdrawal_id=withdrawal_id,
-        txid=txid
-    )
-    
-    withdrawals[withdrawal_id] = withdrawal
-    
-    return withdrawal
-
-
-@router.post("/withdraw-from-utexo", response_model=WithdrawFromUTEXOResponse)
-async def withdraw_from_utexo(
-    req: WithdrawFromUTEXORequestModel
-) -> WithdrawFromUTEXOResponse:
-    """
-    Withdraws BTC or assets from the UTEXO layer back to Bitcoin L1.
-    
-    For BTC withdrawal: requires address_or_rgbinvoice (as address) and amount_sats.
-    For asset withdrawal: requires address_or_rgbinvoice (as RGB invoice starting with "rgb:") and asset field.
-    """
-    if req.address_or_rgbinvoice.startswith("rgb:"):
-        if req.asset is None:
-            raise HTTPException(
-                status_code=400,
-                detail="asset is required when address_or_rgbinvoice is an RGB invoice"
-            )
-        txid, batch_transfer_idx = await withdraw_asset(
-            rgb_invoice=req.address_or_rgbinvoice,
-            asset=req.asset,
-            fee_rate=req.fee_rate
-        )
-        
-        # Start watcher for asset transfer if batch_transfer_idx is available
-        if batch_transfer_idx is not None:
-            start_watcher(batch_transfer_idx)
-    else:
-        if req.amount_sats is None:
-            raise HTTPException(
-                status_code=400,
-                detail="amount_sats is required for BTC withdrawal"
-            )
-        txid = await withdraw_btc(
-            address=req.address_or_rgbinvoice,
-            amount_sats=req.amount_sats,
-            fee_rate=req.fee_rate
-        )
-    
-    withdrawal_id = str(uuid.uuid4())
-    
-    withdrawal = WithdrawFromUTEXOResponse(
-        withdrawal_id=withdrawal_id,
-        txid=txid
-    )
-    
-    withdrawals[withdrawal_id] = withdrawal
-    
-    return withdrawal
-
-
 @router.get("/balance", response_model=WalletBalanceResponse)
 async def get_balance() -> WalletBalanceResponse:
     """
@@ -315,58 +181,143 @@ async def settle():
     return await settle_balances()
 
 
-@router.post("/withdraw", response_model=WithdrawResponse)
-async def withdraw(req: WithdrawRequestModel) -> WithdrawResponse:
+@router.post("/withdraw-begin", response_model=str)
+async def withdraw_begin(
+    req: WithdrawRequestModel
+) -> str:
     """
-    Withdraw funds from the wallet.
+    Begins a withdrawal process.
     
-    Orchestrates channel closing and sweeping to destination address.
-    For now, only handles channels_only case.
+    Returns the request encoded as base64 (mock PSBT).
+    Later this should construct and return a real base64 PSBT.
     """
-    # Generate idempotency key based on request parameters
-    import hashlib
-    import json
-    request_hash = hashlib.sha256(
-        json.dumps(req.model_dump(), sort_keys=True).encode()
-    ).hexdigest()
-    idempotency_key = f"withdraw_{request_hash}"
+    # Validate request based on flow type
+    if req.address_or_rgbinvoice.startswith("rgb:"):
+        # Asset flow - asset is required
+        if req.asset is None:
+            raise HTTPException(
+                status_code=400,
+                detail="asset is required when address_or_rgbinvoice is an RGB invoice"
+            )
+    else:
+        # BTC flow - amount_sats is required
+        if req.amount_sats is None:
+            raise HTTPException(
+                status_code=400,
+                detail="amount_sats is required for BTC withdrawal"
+            )
     
-    # Check for existing withdrawal with same idempotency_key
-    existing = get_withdrawal_by_idempotency_key(idempotency_key)
-    if existing:
-        return WithdrawResponse(
-            withdrawal_id=existing.withdrawal_id,
-            status=existing.status
+    request_dict = req.model_dump()
+    request_json = json.dumps(request_dict)
+    psbt_base64 = base64.b64encode(request_json.encode('utf-8')).decode('utf-8')
+    return psbt_base64
+
+
+@router.post("/withdraw-end", response_model=WithdrawResponse)
+async def withdraw_end(
+    req: SendAssetEndRequestModel
+) -> WithdrawResponse:
+    """
+    Completes a withdrawal using signed PSBT.
+    
+    Decodes the signed_psbt (base64) back to the original request
+    and processes the withdrawal.
+    """
+    try:
+        request_json = base64.b64decode(req.signed_psbt.encode('utf-8')).decode('utf-8')
+        request_dict = json.loads(request_json)
+        withdraw_req = WithdrawRequestModel(**request_dict)
+    except Exception as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid signed_psbt format: {str(e)}"
         )
     
-    # Create new withdrawal
-    withdrawal_id = str(uuid.uuid4())
-    now = int(datetime.utcnow().timestamp())
-    
-    withdrawal = WithdrawalState(
-        withdrawal_id=withdrawal_id,
-        idempotency_key=idempotency_key,
-        address=req.address,
-        amount_sats_requested=req.amount_sats,
-        source=req.source,
-        channel_ids_to_close=req.channel_ids or [],
-        fee_rate_sat_per_vb=req.fee_rate_sat_per_vb,
-        close_mode=req.close_mode,
-        deduct_fee_from_amount=req.deduct_fee_from_amount,
-        status=WithdrawalStatus.REQUESTED,
-        created_at=now,
-        updated_at=now
-    )
-    
-    save_withdrawal(withdrawal)
-    
-    # Start processing in background
-    asyncio.create_task(process_withdrawal(withdrawal_id))
-    
-    return WithdrawResponse(
-        withdrawal_id=withdrawal_id,
-        status=WithdrawalStatus.REQUESTED
-    )
+    # Validate request based on flow type
+    if withdraw_req.address_or_rgbinvoice.startswith("rgb:"):
+        # Asset flow - asset is required
+        if withdraw_req.asset is None:
+            raise HTTPException(
+                status_code=400,
+                detail="asset is required when address_or_rgbinvoice is an RGB invoice"
+            )
+        # For now, asset withdrawals use the old flow (not orchestrator)
+        # TODO: Implement asset withdrawal orchestrator
+        txid, batch_transfer_idx = await withdraw_asset(
+            rgb_invoice=withdraw_req.address_or_rgbinvoice,
+            asset=withdraw_req.asset,
+            fee_rate=withdraw_req.fee_rate
+        )
+        
+        if batch_transfer_idx is not None:
+            start_watcher(batch_transfer_idx)
+        
+        withdrawal_id = str(uuid.uuid4())
+        withdrawal_response = WithdrawFromUTEXOResponse(
+            withdrawal_id=withdrawal_id,
+            txid=txid
+        )
+        
+        # Store in old withdrawals dict for compatibility
+        withdrawals[withdrawal_id] = withdrawal_response
+        
+        # Return as orchestrator response for consistency
+        return WithdrawResponse(
+            withdrawal_id=withdrawal_id,
+            status=WithdrawalStatus.BROADCASTED
+        )
+    else:
+        # BTC flow - amount_sats is required
+        if withdraw_req.amount_sats is None:
+            raise HTTPException(
+                status_code=400,
+                detail="amount_sats is required for BTC withdrawal"
+            )
+        
+        # Generate idempotency key based on request parameters
+        request_hash = hashlib.sha256(
+            json.dumps(withdraw_req.model_dump(), sort_keys=True).encode()
+        ).hexdigest()
+        idempotency_key = f"withdraw_{request_hash}"
+        
+        # Check for existing withdrawal with same idempotency_key
+        existing = get_withdrawal_by_idempotency_key(idempotency_key)
+        if existing:
+            return WithdrawResponse(
+                withdrawal_id=existing.withdrawal_id,
+                status=existing.status
+            )
+        
+        # Create new withdrawal
+        withdrawal_id = str(uuid.uuid4())
+        now = int(datetime.utcnow().timestamp())
+        
+        withdrawal = WithdrawalState(
+            withdrawal_id=withdrawal_id,
+            idempotency_key=idempotency_key,
+            address_or_rgbinvoice=withdraw_req.address_or_rgbinvoice,
+            amount_sats_requested=withdraw_req.amount_sats,
+            asset=withdraw_req.asset,
+            source=withdraw_req.source,
+            channel_ids_to_close=withdraw_req.channel_ids or [],
+            fee_rate_sat_per_vb=withdraw_req.fee_rate_sat_per_vb or withdraw_req.fee_rate,
+            fee_rate=withdraw_req.fee_rate,
+            close_mode=withdraw_req.close_mode,
+            deduct_fee_from_amount=withdraw_req.deduct_fee_from_amount,
+            status=WithdrawalStatus.REQUESTED,
+            created_at=now,
+            updated_at=now
+        )
+        
+        save_withdrawal(withdrawal)
+        
+        # Start processing in background
+        asyncio.create_task(process_withdrawal(withdrawal_id))
+        
+        return WithdrawResponse(
+            withdrawal_id=withdrawal_id,
+            status=WithdrawalStatus.REQUESTED
+        )
 
 
 @router.get("/withdraw/{withdrawal_id}", response_model=GetWithdrawalResponse)
@@ -384,9 +335,10 @@ async def get_withdrawal_status(withdrawal_id: str) -> GetWithdrawalResponse:
     return GetWithdrawalResponse(
         withdrawal_id=withdrawal.withdrawal_id,
         status=withdrawal.status,
-        address=withdrawal.address,
+        address_or_rgbinvoice=withdrawal.address_or_rgbinvoice,
         amount_sats_requested=withdrawal.amount_sats_requested,
         amount_sats_sent=withdrawal.amount_sats_sent,
+        asset=withdrawal.asset,
         close_txids=withdrawal.close_txids,
         sweep_txid=withdrawal.sweep_txid,
         fee_sats=withdrawal.fee_sats,
