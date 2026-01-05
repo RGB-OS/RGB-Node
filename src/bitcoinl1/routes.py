@@ -130,7 +130,6 @@ async def get_balance() -> WalletBalanceResponse:
         total_offchain_msat += outbound_msat
         
         if outbound_msat > 0:
-            # Set expiry_time to now + 1 month
             expiry_time = (datetime.utcnow() + timedelta(days=30)).isoformat() + "Z"
             offchain_details.append(
                 OffchainBalanceDetail(
@@ -194,16 +193,13 @@ async def withdraw_begin(
     Returns the request encoded as base64 (mock PSBT).
     Later this should construct and return a real base64 PSBT.
     """
-    # Validate request based on flow type
     if req.address_or_rgbinvoice.startswith("rgb:"):
-        # Asset flow - asset is required
         if req.asset is None:
             raise HTTPException(
                 status_code=400,
                 detail="asset is required when address_or_rgbinvoice is an RGB invoice"
             )
     else:
-        # BTC flow - amount_sats is required
         if req.amount_sats is None:
             raise HTTPException(
                 status_code=400,
@@ -236,23 +232,18 @@ async def withdraw_end(
             detail=f"Invalid signed_psbt format: {str(e)}"
         )
     
-    # Validate request based on flow type
     if withdraw_req.address_or_rgbinvoice.startswith("rgb:"):
-        # Asset flow - asset is required
         if withdraw_req.asset is None:
             raise HTTPException(
                 status_code=400,
                 detail="asset is required when address_or_rgbinvoice is an RGB invoice"
             )
         
-        # Use orchestrator for asset withdrawals
-        # Generate idempotency key based on request parameters
         request_hash = hashlib.sha256(
             json.dumps(withdraw_req.model_dump(), sort_keys=True).encode()
         ).hexdigest()
         idempotency_key = f"withdraw_{request_hash}"
         
-        # Check for existing withdrawal with same idempotency_key
         existing = get_withdrawal_by_idempotency_key(idempotency_key)
         if existing:
             return WithdrawResponse(
@@ -260,7 +251,6 @@ async def withdraw_end(
                 status=existing.status
             )
         
-        # Create new withdrawal
         withdrawal_id = str(uuid.uuid4())
         now = int(datetime.utcnow().timestamp())
         
@@ -268,13 +258,13 @@ async def withdraw_end(
             withdrawal_id=withdrawal_id,
             idempotency_key=idempotency_key,
             address_or_rgbinvoice=withdraw_req.address_or_rgbinvoice,
-            amount_sats_requested=None,  # Not applicable for assets
+            amount_sats_requested=None,
             asset=withdraw_req.asset,
-            source="channels_only",  # Hardcoded
-            channel_ids_to_close=[],  # Will be determined by orchestrator
-            fee_rate_sat_per_vb=None,  # Not applicable for assets
+            source="channels_only",
+            channel_ids_to_close=[],
+            fee_rate_sat_per_vb=None,
             fee_rate=withdraw_req.fee_rate,
-            close_mode="cooperative",  # Always cooperative
+            close_mode="cooperative",
             deduct_fee_from_amount=withdraw_req.deduct_fee_from_amount,
             status=WithdrawalStatus.REQUESTED,
             created_at=now,
@@ -283,7 +273,6 @@ async def withdraw_end(
         
         save_withdrawal(withdrawal)
         
-        # Start processing in background
         asyncio.create_task(process_withdrawal(withdrawal_id))
         
         return WithdrawResponse(
@@ -291,20 +280,17 @@ async def withdraw_end(
             status=WithdrawalStatus.REQUESTED
         )
     else:
-        # BTC flow - amount_sats is required
         if withdraw_req.amount_sats is None:
             raise HTTPException(
                 status_code=400,
                 detail="amount_sats is required for BTC withdrawal"
             )
         
-        # Generate idempotency key based on request parameters
         request_hash = hashlib.sha256(
             json.dumps(withdraw_req.model_dump(), sort_keys=True).encode()
         ).hexdigest()
         idempotency_key = f"withdraw_{request_hash}"
         
-        # Check for existing withdrawal with same idempotency_key
         existing = get_withdrawal_by_idempotency_key(idempotency_key)
         if existing:
             return WithdrawResponse(
@@ -312,7 +298,6 @@ async def withdraw_end(
                 status=existing.status
             )
         
-        # Create new withdrawal
         withdrawal_id = str(uuid.uuid4())
         now = int(datetime.utcnow().timestamp())
         
@@ -322,11 +307,11 @@ async def withdraw_end(
             address_or_rgbinvoice=withdraw_req.address_or_rgbinvoice,
             amount_sats_requested=withdraw_req.amount_sats,
             asset=withdraw_req.asset,
-            source="channels_only",  # Hardcoded
-            channel_ids_to_close=[],  # Will be determined by orchestrator
+            source="channels_only",
+            channel_ids_to_close=[],
             fee_rate_sat_per_vb=withdraw_req.fee_rate,
             fee_rate=withdraw_req.fee_rate,
-            close_mode="cooperative",  # Always cooperative
+            close_mode="cooperative",
             deduct_fee_from_amount=withdraw_req.deduct_fee_from_amount,
             status=WithdrawalStatus.REQUESTED,
             created_at=now,
@@ -335,7 +320,6 @@ async def withdraw_end(
         
         save_withdrawal(withdrawal)
         
-        # Start processing in background
         asyncio.create_task(process_withdrawal(withdrawal_id))
         
         return WithdrawResponse(

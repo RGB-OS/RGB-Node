@@ -87,8 +87,6 @@ async def pay_lightning_invoice_begin(
     
     Returns the invoice string as a mock PSBT (later will be constructed base64 PSBT).
     """
-    # For now, return the invoice string as mock PSBT
-    # Later this should construct and return a base64 PSBT
     return req.invoice
 
 
@@ -103,7 +101,6 @@ async def pay_lightning_invoice_end(
     """
     rln = get_rln_client()
     
-    # Use signed_psbt as invoice for decoding and payment
     invoice_data = await rln.decode_lightning_invoice(req.signed_psbt)
     
     payment_response = await rln.send_payment(req.signed_psbt)
@@ -223,17 +220,22 @@ async def create_lightning_invoice(
     """
     Creates a Lightning invoice for receiving BTC or asset payments.
     """
-    if req.amount_sats is None:
+    if req.asset is None and req.amount_sats is None:
         raise HTTPException(
             status_code=400,
-            detail="amount_sats is required for all invoices (BTC and asset)"
+            detail="amount_sats is required for BTC invoices"
         )
     
     rln = get_rln_client()
     
     payment_type = "ASSET" if req.asset else "BTC"
     
-    amt_msat = req.amount_sats * 1000
+    if payment_type == "ASSET" and req.amount_sats is None:
+        amount_sats = 3000
+    else:
+        amount_sats = req.amount_sats
+    
+    amt_msat = amount_sats * 1000
     
     expiry_sec = req.expiry_seconds or 420
 
@@ -251,7 +253,7 @@ async def create_lightning_invoice(
         invoice=invoice,
         status="OPEN",
         payment_type=payment_type,
-        amount_sats=req.amount_sats if payment_type == "BTC" else None,
+        amount_sats=amount_sats,
         asset=req.asset,
         created_at=datetime.utcnow().isoformat() + "Z"
     )

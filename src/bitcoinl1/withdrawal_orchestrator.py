@@ -49,15 +49,12 @@ async def find_channels_to_close(asset_id: Optional[str] = None) -> list[dict]:
     
     channels_to_close = []
     for channel in channels:
-        # For BTC withdrawal, asset_id should be null
         channel_asset_id = channel.get("asset_id")
         if asset_id is None and channel_asset_id is None:
-            # BTC channel
             outbound_msat = channel.get("outbound_balance_msat", 0)
             if outbound_msat > 0:
                 channels_to_close.append(channel)
         elif asset_id and channel_asset_id == asset_id:
-            # Asset channel matching the asset_id
             asset_local_amount = channel.get("asset_local_amount", 0)
             if asset_local_amount > 0:
                 channels_to_close.append(channel)
@@ -83,7 +80,6 @@ async def process_withdrawal(withdrawal_id: str) -> None:
     rln = get_rln_client()
     
     try:
-        # For now, only handle channels_only case
         if withdrawal.source not in ["channels_only", "auto"]:
             logger.warning(f"Withdrawal {withdrawal_id}: Unsupported source '{withdrawal.source}'")
             update_withdrawal_status(
@@ -96,7 +92,6 @@ async def process_withdrawal(withdrawal_id: str) -> None:
             return
         
         if withdrawal.status == WithdrawalStatus.REQUESTED:
-            # Determine if this is an asset withdrawal
             is_asset_withdrawal = (
                 withdrawal.address_or_rgbinvoice.startswith("rgb:") and
                 withdrawal.asset is not None
@@ -105,41 +100,34 @@ async def process_withdrawal(withdrawal_id: str) -> None:
             if is_asset_withdrawal:
                 logger.info(f"Withdrawal {withdrawal_id}: Asset withdrawal detected, asset_id={withdrawal.asset.asset_id}")
                 
-                # Get baseline asset balance before closing channels
                 asset_balance_data = await rln.get_asset_balance(withdrawal.asset.asset_id)
                 baseline_balance = asset_balance_data.get("spendable", 0)
                 logger.info(f"Withdrawal {withdrawal_id}: Baseline asset balance before closing: {baseline_balance}")
                 withdrawal.baseline_balance_sats = baseline_balance
                 save_withdrawal(withdrawal)
                 
-                # Find channels to close for this asset
                 channels_to_close = await find_channels_to_close(asset_id=withdrawal.asset.asset_id)
                 logger.info(f"Withdrawal {withdrawal_id}: Found {len(channels_to_close)} asset channels to close")
             else:
                 logger.info(f"Withdrawal {withdrawal_id}: Finding channels to close (BTC channels)")
                 
-                # Get baseline balance before closing channels
                 btc_balance_data = await rln.get_btc_balance()
                 baseline_balance = btc_balance_data["vanilla"]["spendable"]
                 logger.info(f"Withdrawal {withdrawal_id}: Baseline balance before closing: {baseline_balance} sats")
                 withdrawal.baseline_balance_sats = baseline_balance
                 save_withdrawal(withdrawal)
                 
-                # Find channels to close (for BTC withdrawal, asset_id is None)
                 channels_to_close = await find_channels_to_close(asset_id=None)
                 logger.info(f"Withdrawal {withdrawal_id}: Found {len(channels_to_close)} channels to close")
             
             if not channels_to_close:
                 logger.info(f"Withdrawal {withdrawal_id}: No channels to close, moving to sweeping")
-                # No channels to close, move to sweeping
                 update_withdrawal_status(
                     withdrawal_id,
                     WithdrawalStatus.SWEEPING_OUTPUTS
                 )
-                # Continue processing
                 withdrawal = get_withdrawal(withdrawal_id)
             else:
-                # Store channel IDs to close
                 channel_ids = [ch.get("channel_id") for ch in channels_to_close]
                 logger.info(f"Withdrawal {withdrawal_id}: Storing {len(channel_ids)} channel IDs to close: {channel_ids}")
                 withdrawal.channel_ids_to_close = channel_ids
@@ -150,17 +138,14 @@ async def process_withdrawal(withdrawal_id: str) -> None:
                     withdrawal_id,
                     WithdrawalStatus.CLOSING_CHANNELS
                 )
-                # Continue processing
                 withdrawal = get_withdrawal(withdrawal_id)
         
         if withdrawal.status == WithdrawalStatus.CLOSING_CHANNELS:
             logger.info(f"Withdrawal {withdrawal_id}: Closing {len(withdrawal.channel_ids_to_close)} channels")
-            # Close channels
             close_txids = []
             for idx, channel_id in enumerate(withdrawal.channel_ids_to_close, 1):
                 try:
                     logger.info(f"Withdrawal {withdrawal_id}: Closing channel {idx}/{len(withdrawal.channel_ids_to_close)}: {channel_id}")
-                    # Get peer_pubkey from channel data
                     channels_data = await rln.list_channels()
                     channels = channels_data.get("channels", [])
                     peer_pubkey = None
@@ -174,7 +159,6 @@ async def process_withdrawal(withdrawal_id: str) -> None:
                         logger.warning(f"Withdrawal {withdrawal_id}: Could not find peer_pubkey for channel {channel_id}")
                         continue
                     
-                    # Close channel
                     logger.info(f"Withdrawal {withdrawal_id}: Closing channel {channel_id} (force=false)")
                     await rln.close_channel(
                         channel_id=channel_id,
@@ -183,13 +167,10 @@ async def process_withdrawal(withdrawal_id: str) -> None:
                     )
                     logger.info(f"Withdrawal {withdrawal_id}: Channel {channel_id} close request sent successfully")
                     
-                    # Refresh to confirm
                     logger.info(f"Withdrawal {withdrawal_id}: Refreshing transfers to confirm channel close")
                     await rln.refresh_transfers(skip_sync=False)
                     logger.info(f"Withdrawal {withdrawal_id}: Transfers refreshed")
                     
-                    # For now, we'll track the channel_id as the close_txid
-                    # In production, you'd get the actual close transaction ID
                     close_txids.append(channel_id)
                     logger.info(f"Withdrawal {withdrawal_id}: Channel {channel_id} added to close_txids")
                     
@@ -217,7 +198,6 @@ async def process_withdrawal(withdrawal_id: str) -> None:
         
         if withdrawal.status == WithdrawalStatus.WAITING_CLOSE_CONFIRMATIONS:
             logger.info(f"Withdrawal {withdrawal_id}: Checking channel close confirmations")
-            # Check if channels are closed by listing channels
             channels_data = await rln.list_channels()
             channels = channels_data.get("channels", [])
             
@@ -228,7 +208,6 @@ async def process_withdrawal(withdrawal_id: str) -> None:
                     for ch in channels
                 )
                 if channel_exists:
-                    # Channel still exists, check if it's closing/closed
                     channel = next(
                         (ch for ch in channels if ch.get("channel_id") == channel_id),
                         None
@@ -247,7 +226,6 @@ async def process_withdrawal(withdrawal_id: str) -> None:
             
             if all_closed:
                 logger.info(f"Withdrawal {withdrawal_id}: All channels closed, moving to waiting for balance update")
-                # Store when we started waiting
                 withdrawal.balance_wait_started_at = int(datetime.utcnow().timestamp())
                 save_withdrawal(withdrawal)
                 
@@ -256,13 +234,11 @@ async def process_withdrawal(withdrawal_id: str) -> None:
                     WithdrawalStatus.WAITING_BALANCE_UPDATE
                 )
                 withdrawal = get_withdrawal(withdrawal_id)
-                # Continue to check balance immediately
             else:
                 logger.info(f"Withdrawal {withdrawal_id}: Still waiting for channel closures")
-                return  # Don't continue if channels aren't closed yet
+                return  
         
         if withdrawal.status == WithdrawalStatus.WAITING_BALANCE_UPDATE:
-            # Check timeout (10 minutes = 600 seconds)
             now = int(datetime.utcnow().timestamp())
             wait_started_at = withdrawal.balance_wait_started_at or withdrawal.updated_at
             elapsed_seconds = now - wait_started_at
@@ -281,28 +257,23 @@ async def process_withdrawal(withdrawal_id: str) -> None:
             
             logger.info(f"Withdrawal {withdrawal_id}: Checking balance update (elapsed: {elapsed_seconds}s, timeout: {timeout_seconds}s)")
             
-            # Refresh transfers first (ignore timeout errors, just continue)
             try:
                 await rln.refresh_transfers(skip_sync=False)
             except Exception as e:
                 logger.warning(f"Withdrawal {withdrawal_id}: Error refreshing transfers (will continue anyway): {e}")
-                # Continue with balance check even if refresh fails
             
-            # Determine if this is an asset withdrawal
             is_asset_withdrawal = (
                 withdrawal.address_or_rgbinvoice.startswith("rgb:") and
                 withdrawal.asset is not None
             )
             
             if is_asset_withdrawal:
-                # Get current asset balance
                 asset_balance_data = await rln.get_asset_balance(withdrawal.asset.asset_id)
                 current_balance = asset_balance_data.get("spendable", 0)
                 baseline_balance = withdrawal.baseline_balance_sats or 0
                 
                 logger.info(f"Withdrawal {withdrawal_id}: Current asset balance: {current_balance}, Baseline: {baseline_balance}")
             else:
-                # Get current BTC balance
                 btc_balance_data = await rln.get_btc_balance()
                 current_balance = btc_balance_data["vanilla"]["spendable"]
                 baseline_balance = withdrawal.baseline_balance_sats or 0
@@ -319,14 +290,12 @@ async def process_withdrawal(withdrawal_id: str) -> None:
                 withdrawal = get_withdrawal(withdrawal_id)
             else:
                 logger.info(f"Withdrawal {withdrawal_id}: Balance not yet increased, will check again in 40 seconds")
-                # Schedule a retry after 40 seconds
                 asyncio.create_task(_retry_balance_check(withdrawal_id, 40))
                 return
         
         if withdrawal.status == WithdrawalStatus.SWEEPING_OUTPUTS:
             logger.info(f"Withdrawal {withdrawal_id}: Starting to sweep outputs to {withdrawal.address_or_rgbinvoice}")
             
-            # Determine if this is an asset withdrawal
             is_asset_withdrawal = (
                 withdrawal.address_or_rgbinvoice.startswith("rgb:") and
                 withdrawal.asset is not None
@@ -334,13 +303,11 @@ async def process_withdrawal(withdrawal_id: str) -> None:
             
             try:
                 if is_asset_withdrawal:
-                    # Asset withdrawal flow
                     logger.info(f"Withdrawal {withdrawal_id}: Getting asset balance")
                     asset_balance_data = await rln.get_asset_balance(withdrawal.asset.asset_id)
                     asset_spendable = asset_balance_data.get("spendable", 0)
                     logger.info(f"Withdrawal {withdrawal_id}: Asset spendable balance: {asset_spendable}")
                     
-                    # Use requested amount or asset amount from request
                     asset_amount = withdrawal.asset.amount if withdrawal.asset else None
                     if asset_amount is None:
                         asset_amount = asset_spendable
@@ -348,7 +315,6 @@ async def process_withdrawal(withdrawal_id: str) -> None:
                     else:
                         logger.info(f"Withdrawal {withdrawal_id}: Using requested asset amount: {asset_amount}")
                     
-                    # Decode RGB invoice to get recipient_id and transport_endpoints
                     decoded_invoice = await rln.decode_rgb_invoice(withdrawal.address_or_rgbinvoice)
                     recipient_id = decoded_invoice.get("recipient_id")
                     transport_endpoints = decoded_invoice.get("transport_endpoints", [])
@@ -356,17 +322,14 @@ async def process_withdrawal(withdrawal_id: str) -> None:
                     if not recipient_id:
                         raise Exception("Decoded RGB invoice missing recipient_id")
                     
-                    # Prepare assignment
                     assignment = {
                         "type": "Fungible",
                         "value": asset_amount
                     }
                     
-                    # Use fee_rate from request
                     fee_rate = withdrawal.fee_rate or 5
                     logger.info(f"Withdrawal {withdrawal_id}: Using fee_rate: {fee_rate}")
                     
-                    # Send asset
                     logger.info(f"Withdrawal {withdrawal_id}: Sending {asset_amount} of asset {withdrawal.asset.asset_id}")
                     txid = await rln.send_asset(
                         asset_id=withdrawal.asset.asset_id,
@@ -381,7 +344,6 @@ async def process_withdrawal(withdrawal_id: str) -> None:
                     )
                     logger.info(f"Withdrawal {withdrawal_id}: Asset transaction broadcasted, txid: {txid}")
                     
-                    # Get batch_transfer_idx for watcher
                     batch_transfer_idx = None
                     try:
                         transfers_data = await rln.list_transfers(withdrawal.asset.asset_id)
@@ -402,22 +364,19 @@ async def process_withdrawal(withdrawal_id: str) -> None:
                             f"Continuing without watcher."
                         )
                     
-                    # Start watcher if batch_transfer_idx is available
                     if batch_transfer_idx is not None:
                         logger.info(f"Withdrawal {withdrawal_id}: Starting watcher for batch_transfer_idx={batch_transfer_idx}")
                         start_watcher(batch_transfer_idx)
                     
                     withdrawal.sweep_txid = txid
-                    withdrawal.amount_sats_sent = None  # Not applicable for assets
+                    withdrawal.amount_sats_sent = None 
                     save_withdrawal(withdrawal)
                 else:
-                    # BTC withdrawal flow
                     logger.info(f"Withdrawal {withdrawal_id}: Getting BTC balance")
                     btc_balance_data = await rln.get_btc_balance()
                     vanilla_spendable = btc_balance_data["vanilla"]["spendable"]
                     logger.info(f"Withdrawal {withdrawal_id}: Vanilla spendable balance: {vanilla_spendable} sats")
                     
-                    # Use requested amount or max available
                     amount_sats = withdrawal.amount_sats_requested
                     if amount_sats is None:
                         amount_sats = vanilla_spendable
@@ -425,10 +384,8 @@ async def process_withdrawal(withdrawal_id: str) -> None:
                     else:
                         logger.info(f"Withdrawal {withdrawal_id}: Using requested amount: {amount_sats} sats")
                     
-                    # Deduct fee if requested
                     if withdrawal.deduct_fee_from_amount:
-                        # Estimate fee (simplified - in production use proper fee estimation)
-                        estimated_fee = 1000  # Rough estimate
+                        estimated_fee = 1000
                         amount_sats = max(0, amount_sats - estimated_fee)
                         withdrawal.fee_sats = estimated_fee
                         logger.info(f"Withdrawal {withdrawal_id}: Deducting fee {estimated_fee} sats, final amount: {amount_sats} sats")
@@ -436,11 +393,9 @@ async def process_withdrawal(withdrawal_id: str) -> None:
                         withdrawal.fee_sats = None
                         logger.info(f"Withdrawal {withdrawal_id}: Fee will be added on top")
                     
-                    # Use fee_rate from request or default
                     fee_rate = withdrawal.fee_rate or 5
                     logger.info(f"Withdrawal {withdrawal_id}: Using fee_rate: {fee_rate} sat/vb")
                     
-                    # Send BTC
                     logger.info(f"Withdrawal {withdrawal_id}: Sending {amount_sats} sats to {withdrawal.address_or_rgbinvoice}")
                     txid = await rln.send_btc(
                         address=withdrawal.address_or_rgbinvoice,
@@ -474,7 +429,6 @@ async def process_withdrawal(withdrawal_id: str) -> None:
         
         if withdrawal.status == WithdrawalStatus.BROADCASTED:
             logger.info(f"Withdrawal {withdrawal_id}: Transaction broadcasted, marking as confirmed")
-            # Mark as confirmed (in production, would wait for confirmations)
             update_withdrawal_status(
                 withdrawal_id,
                 WithdrawalStatus.CONFIRMED
