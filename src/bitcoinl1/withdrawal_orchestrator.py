@@ -437,7 +437,7 @@ async def process_withdrawal(withdrawal_id: str) -> None:
                         logger.info(f"Withdrawal {withdrawal_id}: Fee will be added on top")
                     
                     # Use fee_rate from request or default
-                    fee_rate = withdrawal.fee_rate_sat_per_vb or withdrawal.fee_rate or 5
+                    fee_rate = withdrawal.fee_rate or 5
                     logger.info(f"Withdrawal {withdrawal_id}: Using fee_rate: {fee_rate} sat/vb")
                     
                     # Send BTC

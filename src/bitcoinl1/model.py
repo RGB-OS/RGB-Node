@@ -20,7 +20,7 @@ class UnusedDepositAddress(BaseModel):
 
 class UnusedDepositAddressesResponse(BaseModel):
     """Response model for unused deposit addresses."""
-    addresses: list[UnusedDepositAddress]
+    addresses: list[SingleUseDepositAddressResponse]
 
 
 class WithdrawFromUTEXORequestModel(BaseModel):
@@ -55,10 +55,6 @@ class WithdrawRequestModel(BaseModel):
     amount_sats: Optional[int] = None  # Required for BTC withdrawal
     asset: Optional[LightningAsset] = None  # Required for Asset withdrawal
     fee_rate: int
-    source: Literal["onchain_only", "channels_only", "auto"] = "auto"
-    channel_ids: Optional[list[str]] = None
-    close_mode: Literal["cooperative", "force"] = "cooperative"
-    fee_rate_sat_per_vb: Optional[int] = None
     deduct_fee_from_amount: bool = True
 
 

@@ -94,15 +94,18 @@ async def get_unused_deposit_addresses() -> UnusedDepositAddressesResponse:
     - Addresses may be automatically rotated or expired by the backend.
     - Recommended for wallets that pre-generate deposit addresses.
     """
-    unused_addresses = []
+    btc_address = await get_or_create_address()
+    asset_invoice = await get_or_create_asset_invoice()
     
-    cached_address = get_deposit_address()
-    if cached_address:
-        unused_addresses.append(cached_address)
+    expires_at = get_cached_expires_at() or (datetime.utcnow() + timedelta(hours=24)).isoformat() + "Z"
     
-    return UnusedDepositAddressesResponse(
-        addresses=unused_addresses
+    unused_address = SingleUseDepositAddressResponse(
+        btc_address=btc_address,
+        asset_invoice=asset_invoice,
+        expires_at=expires_at
     )
+    
+    return UnusedDepositAddressesResponse(addresses=[unused_address])
 
 
 @router.get("/balance", response_model=WalletBalanceResponse)
@@ -267,11 +270,11 @@ async def withdraw_end(
             address_or_rgbinvoice=withdraw_req.address_or_rgbinvoice,
             amount_sats_requested=None,  # Not applicable for assets
             asset=withdraw_req.asset,
-            source=withdraw_req.source,
-            channel_ids_to_close=withdraw_req.channel_ids or [],
+            source="channels_only",  # Hardcoded
+            channel_ids_to_close=[],  # Will be determined by orchestrator
             fee_rate_sat_per_vb=None,  # Not applicable for assets
             fee_rate=withdraw_req.fee_rate,
-            close_mode=withdraw_req.close_mode,
+            close_mode="cooperative",  # Always cooperative
             deduct_fee_from_amount=withdraw_req.deduct_fee_from_amount,
             status=WithdrawalStatus.REQUESTED,
             created_at=now,
@@ -319,11 +322,11 @@ async def withdraw_end(
             address_or_rgbinvoice=withdraw_req.address_or_rgbinvoice,
             amount_sats_requested=withdraw_req.amount_sats,
             asset=withdraw_req.asset,
-            source=withdraw_req.source,
-            channel_ids_to_close=withdraw_req.channel_ids or [],
-            fee_rate_sat_per_vb=withdraw_req.fee_rate_sat_per_vb or withdraw_req.fee_rate,
+            source="channels_only",  # Hardcoded
+            channel_ids_to_close=[],  # Will be determined by orchestrator
+            fee_rate_sat_per_vb=withdraw_req.fee_rate,
             fee_rate=withdraw_req.fee_rate,
-            close_mode=withdraw_req.close_mode,
+            close_mode="cooperative",  # Always cooperative
             deduct_fee_from_amount=withdraw_req.deduct_fee_from_amount,
             status=WithdrawalStatus.REQUESTED,
             created_at=now,
