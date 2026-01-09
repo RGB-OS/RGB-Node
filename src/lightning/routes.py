@@ -18,8 +18,7 @@ from src.lightning.model import (
 from src.routes import SendAssetEndRequestModel
 from src.rln_client import get_rln_client
 from src.dependencies import get_wallet
-import uuid
-import bdkpython 
+import uuid 
 
 router = APIRouter(prefix="/lightning", tags=["Lightning"])
 
