@@ -1,7 +1,12 @@
 """Lightning API routes with mock implementations."""
 from datetime import datetime
-from typing import Optional
-from fastapi import APIRouter, HTTPException
+import os
+import base64
+from typing import Optional, Tuple
+from fastapi import APIRouter, HTTPException, Depends
+from rgb_lib import Assignment, Wallet
+import rgb_lib
+from src.rgb_model import Recipient, SendAssetBeginModel
 from src.lightning.model import (
     PayLightningInvoiceRequestModel,
     LightningSendRequest,
@@ -12,98 +17,92 @@ from src.lightning.model import (
 )
 from src.routes import SendAssetEndRequestModel
 from src.rln_client import get_rln_client
+from src.dependencies import get_wallet
 import uuid
+import bdkpython 
 
 router = APIRouter(prefix="/lightning", tags=["Lightning"])
 
 # Mock storage for Lightning requests
 lightning_send_requests: dict[str, LightningSendRequest] = {}
 lightning_receive_requests: dict[str, LightningReceiveRequest] = {}
-
-
-@router.post("/pay-invoice", response_model=LightningSendRequest)
-async def pay_lightning_invoice(
-    req: PayLightningInvoiceRequestModel
-) -> LightningSendRequest:
-    """
-    Pays a Lightning invoice using the UTEXOWallet.
-    
-    Supports:
-    - BTC Lightning payments
-    - Asset-based Lightning payments (e.g. RGB assets)
-    
-    Asset-related parameters are optional and only required when paying asset invoices.
-    """
-    rln = get_rln_client()
-    
-    invoice_data = await rln.decode_lightning_invoice(req.invoice)
-    
-    payment_response = await rln.send_payment(req.invoice)
-    
-    payment_hash = payment_response["payment_hash"]
-    rln_status = payment_response["status"]
-    
-    status_mapping = {
-        "Pending": "PENDING",
-        "Succeeded": "SUCCEEDED",
-        "Failed": "FAILED"
-    }
-    
-    mapped_status = status_mapping.get(rln_status, "PENDING")
-    
-    amt_msat = invoice_data.get("amt_msat", 0)
-    amount_sats = amt_msat // 1000 if amt_msat else None
-    
-    asset_id = invoice_data.get("asset_id")
-    asset_amount = invoice_data.get("asset_amount")
-    
-    payment_type = "ASSET" if asset_id and asset_amount else "BTC"
-    
-    asset = None
-    if payment_type == "ASSET" and asset_id and asset_amount:
-        asset = LightningAsset(asset_id=asset_id, amount=asset_amount)
-    
-    send_request = LightningSendRequest(
-        id=payment_hash,
-        status=mapped_status,
-        payment_type=payment_type,
-        amount_sats=amount_sats if asset is None else None,
-        asset=asset,
-        fee_sats=None,
-        created_at=datetime.utcnow().isoformat() + "Z"
-    )
-    
-    lightning_send_requests[payment_hash] = send_request
-    
-    return send_request
+# Map PSBT to original invoice for pay-invoice flow
+psbt_to_invoice_map: dict[str, str] = {}
 
 
 @router.post("/pay-invoice-begin", response_model=str)
 async def pay_lightning_invoice_begin(
-    req: PayLightningInvoiceRequestModel
+    req: PayLightningInvoiceRequestModel,
+    wallet_dep: Tuple[Wallet, object, str, str] = Depends(get_wallet)
 ) -> str:
     """
     Begins a Lightning invoice payment process.
     
     Returns the invoice string as a mock PSBT (later will be constructed base64 PSBT).
     """
-    return req.invoice
+    wallet, online,xpub_van, xpub_col = wallet_dep
+    rln = get_rln_client()
+    asset_id = os.getenv("RLN_ASSET_ID")
+    test_invoice = os.getenv("RLN_TEST_INVOICE")
+    ln_invoice_data = await rln.decode_lightning_invoice(req.invoice)
+    invoice_data = rgb_lib.Invoice(test_invoice).invoice_data()
+    asset_amount = ln_invoice_data.get("asset_amount")
+    assignment = Assignment.FUNGIBLE(asset_amount if asset_amount is not None else 10)
+    recipient_map = {
+        asset_id: [
+            Recipient(
+                recipient_id=invoice_data.recipient_id,
+                assignment=assignment,
+                witness_data=None,
+                transport_endpoints=invoice_data.transport_endpoints
+            )
+        ]
+    }
+   
+    send_model = SendAssetBeginModel(
+        recipient_map=recipient_map,
+        donation=False,
+        fee_rate=5,
+        min_confirmations=3
+    )
+
+    psbt = wallet.send_begin(online, send_model.recipient_map, send_model.donation, send_model.fee_rate, send_model.min_confirmations)
+    
+    # Map the PSBT to the invoice to use in pay-invoice-end
+    psbt_to_invoice_map[xpub_van] = req.invoice
+    
+    return psbt
 
 
-@router.post("/pay-invoice-end", response_model=LightningSendRequest)
+@router.post("/pay-invoice-end")
 async def pay_lightning_invoice_end(
-    req: SendAssetEndRequestModel
-) -> LightningSendRequest:
+    req: SendAssetEndRequestModel,
+    wallet_dep: Tuple[Wallet, object, str, str] = Depends(get_wallet)
+):
     """
     Completes a Lightning invoice payment using signed PSBT.
     
     Works the same as pay-invoice but uses signed_psbt instead of invoice.
     """
+    wallet, online, xpub_van, xpub_col = wallet_dep
+    
+   
+    wallet.finalize_psbt(req.signed_psbt)
+    
+    invoice_to_use = psbt_to_invoice_map.get(xpub_van)
+    
+    if not invoice_to_use:
+        raise HTTPException(
+            status_code=400,
+            detail="No invoice found. Please call /pay-invoice-begin first to create a PSBT."
+        )
+    
+
     rln = get_rln_client()
     
-    invoice_data = await rln.decode_lightning_invoice(req.signed_psbt)
+    invoice_data = await rln.decode_lightning_invoice(invoice_to_use)
     
-    payment_response = await rln.send_payment(req.signed_psbt)
+    payment_response = await rln.send_payment(invoice_to_use)
     
     payment_hash = payment_response["payment_hash"]
     rln_status = payment_response["status"]
@@ -140,11 +139,16 @@ async def pay_lightning_invoice_end(
     
     lightning_send_requests[payment_hash] = send_request
     
+    psbt_to_invoice_map.pop(xpub_van, None)
+    
     return send_request
 
 
 @router.get("/send-request/{request_id}", response_model=Optional[LightningSendRequest])
-async def get_lightning_send_request(request_id: str) -> Optional[LightningSendRequest]:
+async def get_lightning_send_request(
+    request_id: str,
+    wallet_dep: Tuple[Wallet, object, str, str] = Depends(get_wallet)
+) -> Optional[LightningSendRequest]:
     """
     Returns the current status of a Lightning payment initiated with payLightningInvoice.
     
@@ -203,7 +207,8 @@ async def get_lightning_send_request(request_id: str) -> Optional[LightningSendR
 
 @router.post("/fee-estimate", response_model=int)
 async def get_lightning_send_fee_estimate(
-    req: GetLightningSendFeeEstimateRequestModel
+    req: GetLightningSendFeeEstimateRequestModel,
+    wallet_dep: Tuple[Wallet, object, str, str] = Depends(get_wallet)
 ) -> int:
     """
     Estimates the routing fee required to pay a Lightning invoice.
@@ -215,7 +220,8 @@ async def get_lightning_send_fee_estimate(
 
 @router.post("/create-invoice", response_model=LightningReceiveRequest)
 async def create_lightning_invoice(
-    req: CreateLightningInvoiceRequestModel
+    req: CreateLightningInvoiceRequestModel,
+    wallet_dep: Tuple[Wallet, object, str, str] = Depends(get_wallet)
 ) -> LightningReceiveRequest:
     """
     Creates a Lightning invoice for receiving BTC or asset payments.
@@ -265,7 +271,8 @@ async def create_lightning_invoice(
 
 @router.get("/receive-request/{request_id}", response_model=Optional[LightningReceiveRequest])
 async def get_lightning_receive_request(
-    request_id: str
+    request_id: str,
+    wallet_dep: Tuple[Wallet, object, str, str] = Depends(get_wallet)
 ) -> Optional[LightningReceiveRequest]:
     """
     Returns the status of a Lightning invoice created with createLightningInvoice.

@@ -1,6 +1,8 @@
 """Deposit and UTEXO API routes with mock implementations."""
 from datetime import datetime, timedelta
-from fastapi import APIRouter, HTTPException
+from typing import Tuple
+from fastapi import APIRouter, HTTPException, Depends
+from rgb_lib import Wallet
 import json
 import base64
 import hashlib
@@ -41,6 +43,7 @@ from src.bitcoinl1.withdrawal_storage import (
 )
 from src.bitcoinl1.withdrawal_orchestrator import process_withdrawal
 from src.routes import SendAssetEndRequestModel
+from src.dependencies import get_wallet
 import uuid
 import os
 import asyncio
@@ -49,10 +52,12 @@ router = APIRouter(prefix="/wallet", tags=["Deposit & UTEXO"])
 
 # Mock storage for withdrawals
 withdrawals: dict[str, WithdrawFromUTEXOResponse] = {}
-
+psbt_to_withdraw_map: dict[str, str] = {}
 
 @router.get("/single-use-address", response_model=SingleUseDepositAddressResponse)
-async def get_single_use_deposit_address() -> SingleUseDepositAddressResponse:
+async def get_single_use_deposit_address(
+    wallet_dep: Tuple[Wallet, object, str, str] = Depends(get_wallet)
+) -> SingleUseDepositAddressResponse:
     """
     Returns a single-use Bitcoin deposit address associated with the UTEXOWallet.
     
@@ -83,7 +88,9 @@ async def get_single_use_deposit_address() -> SingleUseDepositAddressResponse:
 
 
 @router.get("/unused-addresses", response_model=UnusedDepositAddressesResponse)
-async def get_unused_deposit_addresses() -> UnusedDepositAddressesResponse:
+async def get_unused_deposit_addresses(
+    wallet_dep: Tuple[Wallet, object, str, str] = Depends(get_wallet)
+) -> UnusedDepositAddressesResponse:
     """
     Returns a list of unused Bitcoin deposit addresses associated with the UTEXOWallet.
     
@@ -109,7 +116,9 @@ async def get_unused_deposit_addresses() -> UnusedDepositAddressesResponse:
 
 
 @router.get("/balance", response_model=WalletBalanceResponse)
-async def get_balance() -> WalletBalanceResponse:
+async def get_balance(
+    wallet_dep: Tuple[Wallet, object, str, str] = Depends(get_wallet)
+) -> WalletBalanceResponse:
     """
     Returns the wallet balance including BTC balance and token balances.
     """
@@ -173,7 +182,9 @@ async def get_balance() -> WalletBalanceResponse:
 
 
 @router.post("/settle")
-async def settle():
+async def settle(
+    wallet_dep: Tuple[Wallet, object, str, str] = Depends(get_wallet)
+):
     """
     Settle on-chain balances by opening Lightning channels.
     
@@ -185,7 +196,8 @@ async def settle():
 
 @router.post("/withdraw-begin", response_model=str)
 async def withdraw_begin(
-    req: WithdrawRequestModel
+    req: WithdrawRequestModel,
+    wallet_dep: Tuple[Wallet, object, str, str] = Depends(get_wallet)
 ) -> str:
     """
     Begins a withdrawal process.
@@ -193,6 +205,8 @@ async def withdraw_begin(
     Returns the request encoded as base64 (mock PSBT).
     Later this should construct and return a real base64 PSBT.
     """
+    wallet, online, xpub_van, xpub_col = wallet_dep
+
     if req.address_or_rgbinvoice.startswith("rgb:"):
         if req.asset is None:
             raise HTTPException(
@@ -209,12 +223,17 @@ async def withdraw_begin(
     request_dict = req.model_dump()
     request_json = json.dumps(request_dict)
     psbt_base64 = base64.b64encode(request_json.encode('utf-8')).decode('utf-8')
-    return psbt_base64
+
+    amount_sats = req.amount_sats if req.amount_sats is not None else 1000
+    psbt = wallet.send_btc_begin(online, 'bcrt1ppjggtsju3sj62ylyq0062ml9hmptcuf2gg4e47m3ntyj7dyrgdfqzg5epw', amount_sats, 5, True)
+    psbt_to_withdraw_map[xpub_van] = psbt_base64
+    return psbt
 
 
 @router.post("/withdraw-end", response_model=WithdrawResponse)
 async def withdraw_end(
-    req: SendAssetEndRequestModel
+    req: SendAssetEndRequestModel,
+    wallet_dep: Tuple[Wallet, object, str, str] = Depends(get_wallet)
 ) -> WithdrawResponse:
     """
     Completes a withdrawal using signed PSBT.
@@ -222,8 +241,16 @@ async def withdraw_end(
     Decodes the signed_psbt (base64) back to the original request
     and processes the withdrawal.
     """
+    wallet, online, xpub_van, xpub_col = wallet_dep
+    psbt_to_use = psbt_to_withdraw_map.get(xpub_van)
+    if not psbt_to_use:
+        raise HTTPException(
+            status_code=400,
+            detail="No PSBT found. Please call /withdraw-begin first to create a PSBT."
+        )
+    wallet.finalize_psbt(req.signed_psbt)
     try:
-        request_json = base64.b64decode(req.signed_psbt.encode('utf-8')).decode('utf-8')
+        request_json = base64.b64decode(psbt_to_use.encode('utf-8')).decode('utf-8')
         request_dict = json.loads(request_json)
         withdraw_req = WithdrawRequestModel(**request_dict)
     except Exception as e:
@@ -329,7 +356,10 @@ async def withdraw_end(
 
 
 @router.get("/withdraw/{withdrawal_id}", response_model=GetWithdrawalResponse)
-async def get_withdrawal_status(withdrawal_id: str) -> GetWithdrawalResponse:
+async def get_withdrawal_status(
+    withdrawal_id: str,
+    wallet_dep: Tuple[Wallet, object, str, str] = Depends(get_wallet)
+) -> GetWithdrawalResponse:
     """
     Get withdrawal status by ID.
     """

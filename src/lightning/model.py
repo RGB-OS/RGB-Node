@@ -12,7 +12,7 @@ class LightningAsset(BaseModel):
 class PayLightningInvoiceRequestModel(BaseModel):
     """Request model for paying a Lightning invoice."""
     invoice: str
-    max_fee_sats: int
+    max_fee_sats: int = 3000
 
 
 class LightningSendRequest(BaseModel):
