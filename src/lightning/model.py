@@ -49,3 +49,9 @@ class LightningReceiveRequest(BaseModel):
     asset: Optional[LightningAsset] = None
     created_at: str
 
+
+class ListPaymentsResponse(BaseModel):
+    """Response model for listing payments."""
+    sent: list[LightningSendRequest]
+    received: list[LightningReceiveRequest]
+

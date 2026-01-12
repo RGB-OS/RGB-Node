@@ -49,6 +49,7 @@ from src.bitcoinl1.withdrawal_storage import (
 )
 from src.bitcoinl1.withdrawal_orchestrator import process_withdrawal
 from src.routes import SendAssetEndRequestModel
+from src.rgb_model import ListTransfersRequestModel
 from src.dependencies import get_wallet
 import uuid
 import os
@@ -97,6 +98,19 @@ async def get_single_use_deposit_address(
         asset_invoice=asset_invoice,
         expires_at=expires_at
     )
+
+
+@router.post("/listtransfers")
+async def list_transfers(
+    req: ListTransfersRequestModel,
+    wallet_dep: Tuple[Wallet, object, str, str] = Depends(get_wallet)
+):
+    """
+    Lists all transfers for a specific asset.
+    """
+    wallet, online, xpub_van, xpub_col = wallet_dep
+    list_transfers = wallet.list_transfers(req.asset_id)
+    return list_transfers
 
 
 @router.get("/unused-addresses", response_model=UnusedDepositAddressesResponse)
@@ -367,7 +381,7 @@ async def withdraw_end(
         )
 
 
-@router.get("/withdraw/{withdrawal_id}", response_model=GetWithdrawalResponse)
+@router.get("/onchain-send/{withdrawal_id}", response_model=GetWithdrawalResponse)
 async def get_withdrawal_status(
     withdrawal_id: str,
     wallet_dep: Tuple[Wallet, object, str, str] = Depends(get_wallet)
@@ -400,180 +414,3 @@ async def get_withdrawal_status(
         error_message=withdrawal.error_message,
         retryable=withdrawal.retryable
     )
-
-
-@router.post("/receive", response_model=ReceiveResponseModel)
-async def receive(
-    req: ReceiveRequestModel,
-    wallet_dep: Tuple[Wallet, object, str, str] = Depends(get_wallet)
-) -> ReceiveResponseModel:
-    """
-    Creates a receive address or invoice for receiving BTC or asset payments.
-    
-    Returns the same structure as /single-use-address with an additional ln_invoice field.
-    """
-    single_use_response = await get_single_use_deposit_address(wallet_dep)
-    
-    ln_invoice = ""
-    request_id = None
-    try:
-        lightning_req = CreateLightningInvoiceRequestModel(
-            amount_sats=req.amount_sat,
-            asset=req.asset,
-            expiry_seconds=420  # Default expiry
-        )
-        
-        lightning_response = await create_lightning_invoice(lightning_req, wallet_dep)
-        ln_invoice = lightning_response.invoice
-        request_id = lightning_response.id
-    except Exception as e:
-        print(f"Failed to create lightning invoice: {str(e)}")
-    
-    return ReceiveResponseModel(
-        btc_address=single_use_response.btc_address,
-        asset_invoice=single_use_response.asset_invoice,
-        expires_at=single_use_response.expires_at,
-        ln_invoice=ln_invoice,
-        request_id=request_id
-    )
-
-
-@router.post("/paybegin", response_model=str)
-async def pay_begin(
-    req: PayBeginRequestModel,
-    wallet_dep: Tuple[Wallet, object, str, str] = Depends(get_wallet)
-) -> str:
-    """
-    Begins a payment process.
-    
-    Returns a PSBT that needs to be signed.
-    """
-    wallet, online, xpub_van, xpub_col = wallet_dep
-    rln = get_rln_client()
-    
-    if req.address_or_invoice.startswith("rgb:"):
-        # Asset payment using RGB invoice
-        if req.asset is None:
-            raise HTTPException(
-                status_code=400,
-                detail="asset is required when address_or_invoice is an RGB invoice"
-            )
-        
-        # Decode RGB invoice
-        invoice_data = await rln.decode_rgb_invoice(req.address_or_invoice)
-        recipient_id = invoice_data.get("recipient_id")
-        transport_endpoints = invoice_data.get("transport_endpoints", [])
-        
-        if not recipient_id:
-            raise HTTPException(
-                status_code=400,
-                detail="Invalid RGB invoice: missing recipient_id"
-            )
-        
-        from src.rgb_model import Recipient, SendAssetBeginModel
-        
-        assignment = Assignment.FUNGIBLE(req.asset.amount)
-        recipient_map = {
-            req.asset.asset_id: [
-                Recipient(
-                    recipient_id=recipient_id,
-                    assignment=assignment,
-                    witness_data=None,
-                    transport_endpoints=transport_endpoints
-                )
-            ]
-        }
-        
-        send_model = SendAssetBeginModel(
-            recipient_map=recipient_map,
-            donation=False,
-            fee_rate=req.fee_rate,
-            min_confirmations=req.min_confirmations
-        )
-        
-        psbt = wallet.send_begin(
-            online,
-            send_model.recipient_map,
-            send_model.donation,
-            send_model.fee_rate,
-            send_model.min_confirmations
-        )
-    else:
-        # BTC payment to address
-        if req.amount_sats is None:
-            raise HTTPException(
-                status_code=400,
-                detail="amount_sats is required for BTC payment"
-            )
-        
-        psbt = wallet.send_btc_begin(
-            online,
-            req.address_or_invoice,
-            req.amount_sats,
-            req.fee_rate,
-            True  # skip_sync
-        )
-    
-    # Map the PSBT to the invoice/address for later use in payend
-    psbt_to_invoice_map[xpub_van] = req.address_or_invoice
-    
-    return psbt
-
-
-@router.post("/payend", response_model=PayResponseModel)
-async def pay_end(
-    req: PayEndRequestModel,
-    wallet_dep: Tuple[Wallet, object, str, str] = Depends(get_wallet)
-) -> PayResponseModel:
-    """
-    Completes a payment using signed PSBT.
-    """
-    wallet, online, xpub_van, xpub_col = wallet_dep
-    
-    # Get the original invoice/address mapped to this PSBT
-    invoice_to_use = psbt_to_invoice_map.get(xpub_van)
-    
-    if not invoice_to_use:
-        raise HTTPException(
-            status_code=400,
-            detail="No invoice found. Please call /paybegin first to create a PSBT."
-        )
-    
-    # Finalize the PSBT
-    wallet.finalize_psbt(req.signed_psbt)
-    
-    # Determine payment type
-    payment_type = "ASSET" if invoice_to_use.startswith("rgb:") else "BTC"
-    
-    # Send the payment
-    rln = get_rln_client()
-    payment_id = str(uuid.uuid4())
-    
-    if payment_type == "ASSET":
-        # For asset payments, the send_begin already initiated the transfer
-        # We just need to complete it with send_end
-        result = wallet.send_end(online, req.signed_psbt, False)
-        txid = result.txid if hasattr(result, 'txid') else None
-    else:
-        # For BTC payments, use send_btc_end to complete the transaction
-        result = wallet.send_btc_end(online, req.signed_psbt, False)
-        txid = result.txid if hasattr(result, 'txid') else None
-    
-    payment_request = PayResponseModel(
-        id=payment_id,
-        status="SUCCEEDED" if txid else "PENDING",
-        payment_type=payment_type,
-        amount_sats=None,  # Could be extracted from request if needed
-        asset=None,  # Could be extracted from request if needed
-        fee_sats=None,
-        txid=txid,
-        created_at=datetime.utcnow().isoformat() + "Z"
-    )
-    
-    payment_requests[payment_id] = payment_request
-    
-    # Remove the invoice from mapping after it's been used
-    psbt_to_invoice_map.pop(xpub_van, None)
-    
-    return payment_request
-

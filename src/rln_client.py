@@ -588,6 +588,22 @@ class RLNClient:
         logger.debug(f"Payment response: {data}")
         return data
     
+    async def list_payments(self) -> Dict[str, Any]:
+        """
+        List all payments from the RLN node.
+        
+        Returns:
+            Dict[str, Any]: Payments data with payments array containing payment objects
+            
+        Raises:
+            HTTPException: If the request fails
+        """
+        logger.debug("Listing payments from RLN node")
+        data = await self._make_request("POST", "/listpayments", timeout=30.0, json={})
+        logger.debug(f"Payments response: {data}")
+        return data
+        
+    
     async def list_transactions(self, skip_sync: bool = False) -> Dict[str, Any]:
         """
         List transactions from the RLN node.

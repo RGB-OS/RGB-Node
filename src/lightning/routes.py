@@ -14,6 +14,7 @@ from src.lightning.model import (
     CreateLightningInvoiceRequestModel,
     LightningReceiveRequest,
     LightningAsset,
+    ListPaymentsResponse,
 )
 from src.routes import SendAssetEndRequestModel
 from src.rln_client import get_rln_client
@@ -307,6 +308,32 @@ async def get_lightning_receive_request(
     lightning_receive_requests[request_id] = updated_request
     
     return updated_request
+
+
+@router.get("/listpayments")
+async def list_payments(
+    wallet_dep: Tuple[Wallet, object, str, str] = Depends(get_wallet)
+):
+    """
+    Lists all Lightning payments from the RLN node.
+    
+    Returns the same data structure as the RLN node's listpayments endpoint.
+    """
+    rln = get_rln_client()
+    return await rln.list_payments()
+
+
+@router.get("/listtransactions")
+async def list_transactions(
+    wallet_dep: Tuple[Wallet, object, str, str] = Depends(get_wallet)
+):
+    """
+    Lists all transactions from the RLN node.
+    
+    Returns the same data structure as the RLN node's listtransactions endpoint.
+    """
+    rln = get_rln_client()
+    return await rln.list_transactions(skip_sync=False)
 
 
 def mock_invoice_suffix() -> str:
