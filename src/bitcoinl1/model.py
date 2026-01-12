@@ -216,3 +216,44 @@ class ListTransactionsResponse(BaseModel):
     """Response model for list transactions."""
     transactions: list[Transaction]
 
+
+class ReceiveRequestModel(BaseModel):
+    """Request model for creating a receive address/invoice."""
+    amount_sat: Optional[int] = None
+    asset: Optional[LightningAsset] = None
+
+
+class ReceiveResponseModel(BaseModel):
+    """Response model for receive address/invoice."""
+    btc_address: str
+    asset_invoice: str
+    expires_at: Optional[str] = None
+    ln_invoice: str = ""
+    request_id: Optional[str] = None
+
+
+class PayBeginRequestModel(BaseModel):
+    """Request model for beginning a payment."""
+    address_or_invoice: str
+    amount_sats: Optional[int] = None
+    asset: Optional[LightningAsset] = None
+    fee_rate: int = 5
+    min_confirmations: int = 3
+
+
+class PayEndRequestModel(BaseModel):
+    """Request model for completing a payment."""
+    signed_psbt: str
+
+
+class PayResponseModel(BaseModel):
+    """Response model for payment."""
+    id: str
+    status: Literal["PENDING", "SUCCEEDED", "FAILED"]
+    payment_type: Literal["BTC", "ASSET"]
+    amount_sats: Optional[int] = None
+    asset: Optional[LightningAsset] = None
+    fee_sats: Optional[int] = None
+    txid: Optional[str] = None
+    created_at: str
+
