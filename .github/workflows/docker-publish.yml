@@ -2,7 +2,7 @@ name: Build & Deploy
 
 on:
   push:
-    branches: [bridge-prod, bridge-test, public]
+    branches: [bridge-prod, bridge-test, public, main]
 
 concurrency:
   group: deploy-${{ github.ref_name }}
@@ -27,35 +27,16 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Determine target env (prod vs test)
-        run: |
-          echo "SHORT_SHA=${GITHUB_SHA::7}" >> $GITHUB_ENV
-          if [[ "${GITHUB_REF_NAME}" == "bridge-prod" ]]; then
-            echo "TAG_PREFIX=prod" >> $GITHUB_ENV
-            echo "ECS_CLUSTER=${{ secrets.ECS_CLUSTER_PROD }}" >> $GITHUB_ENV
-            echo "ECS_SERVICE=${{ secrets.ECS_SERVICE_PROD }}" >> $GITHUB_ENV
-          elif [[ "${GITHUB_REF_NAME}" == "bridge-test" ]]; then
-            echo "TAG_PREFIX=test" >> $GITHUB_ENV
-            echo "ECS_CLUSTER=${{ secrets.ECS_CLUSTER_TEST }}" >> $GITHUB_ENV
-            echo "ECS_SERVICE=${{ secrets.ECS_SERVICE_TEST }}" >> $GITHUB_ENV
-          elif [[ "${GITHUB_REF_NAME}" == "public" ]]; then
-            echo "TAG_PREFIX=public" >> $GITHUB_ENV
-            echo "ECS_CLUSTER=${{ secrets.ECS_CLUSTER_PUBLIC }}" >> $GITHUB_ENV
-            echo "ECS_SERVICE=${{ secrets.ECS_SERVICE_PUBLIC }}" >> $GITHUB_ENV
-          else
-            echo "Unsupported branch ${GITHUB_REF_NAME}"; exit 1
-          fi
-
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
           push: true
           tags: |
-            ${{ env.IMAGE_NAME }}:${{ env.TAG_PREFIX }}
-            ${{ env.IMAGE_NAME }}:${{ env.TAG_PREFIX }}-${{ env.SHORT_SHA }}
-          cache-from: type=gha,scope=${{ env.TAG_PREFIX }}
-          cache-to: type=gha,mode=max,scope=${{ env.TAG_PREFIX }}
+            ${{ env.IMAGE_NAME }}:main
+            ${{ env.IMAGE_NAME }}:main-${{ env.SHORT_SHA }}
+          cache-from: type=gha,scope=main
+          cache-to: type=gha,mode=max,scope=main
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
@@ -63,10 +44,3 @@ jobs:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
-
-      - name: Force new deployment on ECS
-        run: |
-          aws ecs update-service \
-            --cluster "$ECS_CLUSTER" \
-            --service "$ECS_SERVICE" \
-            --force-new-deployment
