@@ -228,6 +228,9 @@ async def open_asset_channels(
     results = []
     nia_assets = assets_data.get("nia", [])
     
+    # Get the allowed asset ID from environment
+    rln_asset_id = os.getenv("RLN_ASSET_ID")
+    
     for asset in nia_assets:
         balance_data = asset.get("balance", {})
         offchain_outbound = balance_data.get("offchain_outbound", 0)
@@ -237,11 +240,17 @@ async def open_asset_channels(
             continue
         
         asset_id = asset.get("asset_id")
-        amount_to_settle = spendable - offchain_outbound
         
         if not asset_id:
             logger.warning("Skipping asset channel: missing asset_id")
             continue
+        
+        # Temporarily: only process assets matching RLN_ASSET_ID
+        if rln_asset_id and asset_id != rln_asset_id:
+            logger.debug(f"Skipping asset channel for {asset_id}: does not match RLN_ASSET_ID ({rln_asset_id})")
+            continue
+        
+        amount_to_settle = spendable - offchain_outbound
         
         if amount_to_settle <= 0:
             logger.debug(f"Skipping asset channel for {asset_id}: no amount to settle")
