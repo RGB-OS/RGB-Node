@@ -7,8 +7,12 @@ from fastapi import FastAPI,Request
 from src.routes import router 
 from src.lightning.routes import router as lightning_router
 from src.bitcoinl1.routes import router as deposit_router
+from src.bitcoinl1.settlement import settle_balances
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.interval import IntervalTrigger
 import rgb_lib
 import logging
+import asyncio
 
 # Configure logging
 logging.basicConfig(
@@ -36,3 +40,31 @@ async def wallet_not_found_handler(request: Request, exc: WalletNotFoundError):
 app.include_router(router)
 app.include_router(lightning_router)
 app.include_router(deposit_router)
+
+# Setup scheduler for settle_balances cron job
+scheduler = AsyncIOScheduler()
+
+@scheduler.scheduled_job(IntervalTrigger(minutes=5))
+async def run_settle_balances():
+    """Run settle_balances every 5 minutes."""
+    try:
+        logger = logging.getLogger(__name__)
+        logger.info("Running scheduled settle_balances...")
+        await settle_balances()
+        logger.info("Scheduled settle_balances completed successfully")
+    except Exception as e:
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error in scheduled settle_balances: {str(e)}", exc_info=True)
+
+# Start scheduler when app starts
+@app.on_event("startup")
+async def startup_event():
+    scheduler.start()
+    logger = logging.getLogger(__name__)
+    logger.info("Scheduler started - settle_balances will run every 5 minutes")
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    scheduler.shutdown()
+    logger = logging.getLogger(__name__)
+    logger.info("Scheduler shut down")
