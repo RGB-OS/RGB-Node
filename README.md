@@ -1,5 +1,40 @@
 # RGB Node
 
+🔐 Security & Trust Model (Important)
+-------------------------------------
+
+> **RGB Node is infrastructure software and is NOT intended to be used as a public shared service.**
+
+Running RGB Node requires **explicit trust in the operator**, because the node:
+
+-   Receives **wallet identifiers (xpubs, master fingerprint)**
+-   Maintains **wallet state and UTXO sets**
+-   Constructs **PSBTs for signing**
+-   Observes **all wallet activity and transaction graph metadata**
+
+While **private keys are never held by the RGB Node**, wallet privacy and transaction integrity **depend on the honesty and security of the server operator**.
+
+### ⚠️ Threat model summary
+
+If you use an RGB Node operated by a third party:
+
+-   That operator can **observe all wallet activity**
+-   Extended public keys **must be assumed disclosed**
+-   A malicious or compromised server **could construct malicious PSBTs**
+-   Privacy exposure is **permanent** for any xpub ever used
+
+* * * * *
+
+Deployment Recommendation (Strong)
+----------------------------------
+
+**RGB Node MUST be deployed inside infrastructure you control**, such as:
+
+-   Exchange backend
+-   Wallet backend
+-   Internal settlement system
+-   Enterprise custody environment
+
 RGB Node is a drop‑in HTTP service for integrating RGB asset transfers on Bitcoin L1. It exposes a developer‑friendly REST API for wallets, exchanges, and apps to issue, receive, and transfer RGB assets without embedding the full RGB protocol logic in the client.
 
 - Responsibilities: RGB state handling, invoice creation/decoding, PSBT building, UTXO maintenance, and transfer lifecycle management
@@ -10,14 +45,6 @@ RGB Node is a drop‑in HTTP service for integrating RGB asset transfers on Bitc
 
 References:
 - [RGB Node](https://docs.thunderstack.org/bitcoin-native-infrastructure/readme/thunderlink/rgb-manager)
-
-
-## Public RGB Node Endpoints
-
-**Ready to use** — no setup required:
-
-- **Testnet**: `https://rgb-node.test.thunderstack.org/`
-- **Mainnet**: `https://rgb-node.thunderstack.org/`
 
 ## Client SDK
 
