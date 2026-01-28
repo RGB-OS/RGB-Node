@@ -43,23 +43,13 @@ RGB Node is a drop‑in HTTP service for integrating RGB asset transfers on Bitc
 - Built on `rgb-lib` maintained by [Bitfinex](https://github.com/RGB-Tools/rgb-lib)
 - Full rgb-lib coverage: expose rgb-lib functionality through HTTP endpoints
 
-References:
-- [RGB Node](https://docs.thunderstack.org/bitcoin-native-infrastructure/readme/thunderlink/rgb-manager)
-
 ## Client SDK
 
-To simplify integration with the RGB Node from JavaScript/TypeScript backends, you can use the official client SDK:
+To simplify integration with the RGB Node from JavaScript/TypeScript backends, you can use the client SDK:
 
 - `rgb-sdk`: a Node.js SDK that wraps the RGB Node API and common flows (invoice, UTXOs, PSBT build/sign/finalize, balances, transfers), making server integrations faster and more consistent. See the repository for usage examples and flow helpers: [`RGB-OS/rgb-sdk`](https://github.com/RGB-OS/rgb-sdk).
 
 This SDK mirrors the API surface and patterns described here, and can be adapted to your signing setup (local mnemonic etc) and orchestration needs. It is well‑suited for building your own wallet backend or exchange integration. [Repository link](https://github.com/RGB-OS/rgb-sdk).
-
-### WDK Wallet Integration
-
-This RGB Node is used by [`@utexo/wdk-wallet-rgb`](https://github.com/UTEXO-Protocol/wdk-wallet-rgb), which bridges the Wallet Development Kit (WDK) interfaces with the RGB ecosystem by wrapping the official `rgb-sdk` WalletManager API inside the familiar WDK abstractions. It handles key-derivation, account lifecycle, UTXO orchestration, asset issuance, transfers, and wallet backup flows while keeping the WDK ergonomics you already know. The library expects an RGB node and Bitcoin backend to be available, just like the upstream `rgb-sdk` tooling.
-
-For more information, see the [`@utexo/wdk-wallet-rgb` repository](https://github.com/UTEXO-Protocol/wdk-wallet-rgb).
-
 
 ## Features
 
@@ -84,9 +74,6 @@ Typical flow for an online wallet:
 - Create/register wallet on the node → node derives addresses/maintains UTXOs.
 - Generate invoices (blinded or witness) and receive payments.
 - Build PSBTs for outgoing transfers; sign client‑side or by a dedicated signer; submit to finalize.
-
-For more details see the ThunderStack docs: [Overwiew](https://docs.thunderstack.org/bitcoin-native-infrastructure/readme/thunderlink/overwiew), [RGB Node](https://docs.thunderstack.org/bitcoin-native-infrastructure/readme/thunderlink/rgb-manager).
-
 
 ## Wallet identification headers
 
@@ -118,19 +105,7 @@ curl -X POST :8000/wallet/listassets \
 
 ## Quickstart
 
-You have three options to use RGB Node:
-
-1) **Public RGB Node endpoints** (easiest for testing)
-- Testnet: `https://rgb-node.test.thunderstack.org/`
-- Mainnet: `https://rgb-node.thunderstack.org/`
-- Ready to use immediately, no setup required
-- Perfect for development and testing
-
-2) [ThunderCloud](https://cloud.thunderstack.org/) managed deployment (recommended for production)
-- Fully configurable and ready to use on ThunderCloud
-- Launch, configure, and operate RGB Node with a few clicks
-
-3) Self‑host
+Self‑host
 - Use the Python or Docker instructions below
 - Configure env vars like `NETWORK` and `PROXY_ENDPOINT`
 - Pair with a signer if you want server‑side signing
@@ -188,11 +163,7 @@ docker compose up --build
 Below is a practical summary of key endpoints implemented in `src/routes.py`. Payload shapes are defined in `src/rgb_model.py`. All endpoints are `POST` unless specified.
 
 Base URL examples:
-- Public testnet: `https://rgb-node.test.thunderstack.org/`
-- Public mainnet: `https://rgb-node.thunderstack.org/`
 - Local dev: `http://127.0.0.1:8000`
-
-[API reference](https://docs.thunderstack.org/bitcoin-native-infrastructure/readme/thunderlink/rgb-manager/api-reference)
 
 ### Wallet bootstrap
 
@@ -317,7 +288,7 @@ Response:
 ## Security model
 
 - The RGB Node never needs application private keys. It constructs PSBTs; signing is performed by a separate signer service or client app, then submitted back.
-- For production deployments, place the node behind your own API gateway and auth. See the security guidance and architecture notes [RGB Node](https://docs.thunderstack.org/bitcoin-native-infrastructure/readme/thunderlink/rgb-manager).
+- For production deployments, place the node behind your own API gateway and auth
 
 
 ## Configuration and operations
@@ -334,9 +305,8 @@ Response:
 
 ## External Signer
 
-For production, pair the RGB Node with a dedicated signer service that holds keys in your environment and signs PSBTs via secure messaging (RabbitMQ). See:
+For production, pair the RGB Node with a dedicated signer service that holds keys in your environment and validates and signs PSBTs via secure messaging. See:
 
-- RGB Signer docs (how it works, queues, security): [RGB Signer](https://docs.thunderstack.org/bitcoin-native-infrastructure/readme/thunderlink/rgb-signer)
 - Signer repository (TypeScript service): [`RGB-OS/thunderlink-signer`](https://github.com/RGB-OS/thunderlink-signer)
 
 Typical use:
@@ -344,12 +314,11 @@ Typical use:
 - Signer receives a sign request over RabbitMQ, signs using your mnemonic, returns signed PSBT
 - RGB Node finalizes via `/wallet/sendend`
 
-This model keeps private keys off the RGB Node and avoids any public-facing key material, matching the architecture outlined in the docs. [Signer docs](https://docs.thunderstack.org/bitcoin-native-infrastructure/readme/thunderlink/rgb-signer), [Repo](https://github.com/RGB-OS/thunderlink-signer).
+This model keeps private keys off the RGB Node.
 
 ## Future roadmap
 
 - Authentication/Authorization:
-  - When hosted in ThunderCloud, JWT authorization will be provided by ThunderStack (managed deployment)
   - For self‑hosted deployments, customers should add their own JWT/auth middleware and gateway
 - Pluggable storage for wallet state (PostgreSQL)
 - Multi‑tenant admin endpoints and quota/rate‑limit hooks
@@ -422,6 +391,3 @@ The worker automatically:
 
 
 For more details, see [REFRESH_WORKER.md](./REFRESH_WORKER.md).
-
-
-
