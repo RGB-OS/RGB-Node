@@ -139,6 +139,7 @@ venv.bak/
 .env.thunder
 .env.testnet
 .env.mainnet
+.env.signet
 
 # Spyder project settings
 .spyderproject

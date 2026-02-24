@@ -5,9 +5,9 @@ from pydantic import BaseModel
 from src.dependencies import get_wallet,create_wallet
 from rgb_lib import BitcoinNetwork, Wallet,AssetSchema, Assignment
 from src.rgb_model import AssetNia, Backup, Balance, BtcBalance, DecodeRgbInvoiceRequestModel, DecodeRgbInvoiceResponseModel, FailTransferRequestModel, GetAssetResponseModel, GetFeeEstimateRequestModel, IssueAssetNiaRequestModel, ListTransfersRequestModel, ReceiveData, Recipient, RefreshRequestModel, RegisterModel, RgbInvoiceRequestModel, SendAssetBeginModel, SendAssetBeginRequestModel, SendBtcBeginRequestModel, SendBtcEndRequestModel, SendResult, Transfer, Unspent
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Header
 import os
-from src.wallet_utils import BACKUP_PATH, create_wallet_instance, get_backup_path, remove_backup_if_exists, restore_wallet_instance, test_wallet_instance, WalletStateExistsError
+from src.wallet_utils import BACKUP_PATH, create_wallet_instance, get_backup_path, offline_wallet_instance, remove_backup_if_exists, restore_wallet_instance, test_wallet_instance, WalletStateExistsError
 import shutil
 import uuid
 import rgb_lib
@@ -30,6 +30,14 @@ class CreateUtxosBegin(BaseModel):
     size: int = 1000
     fee_rate: int = 5
 
+
+class CreateUtxosWithSign(BaseModel):
+    """Create UTXOs in one call: begin (load_wallet) → sign (offline_wallet + mnemonic) → end."""
+    mnemonic: str
+    up_to: bool = False
+    num: int = 5
+    size: int = 1000
+    fee_rate: int = 5
 
 
 class SendAssetEndRequestModel(BaseModel):
@@ -86,6 +94,22 @@ def create_utxos_end(req: CreateUtxosEnd, wallet_dep: tuple[Wallet, object,str,s
     wallet, online,xpub_van, xpub_col = wallet_dep
     result = wallet.create_utxos_end(online, req.signed_psbt, False)
     return result
+
+
+@router.post("/wallet/createutxos", response_model=int)
+def create_utxos_with_sign(
+    req: CreateUtxosWithSign,
+    wallet_dep: tuple[Wallet, object, str, str] = Depends(get_wallet),
+    master_fingerprint: str = Header(..., alias="master-fingerprint"),
+):
+    """Create UTXOs: begin via load_wallet, sign via offline_wallet + mnemonic, then end."""
+    wallet, online, xpub_van, xpub_col = wallet_dep
+    psbt = wallet.create_utxos_begin(online, req.up_to, req.num, req.size, req.fee_rate, False)
+    signer = offline_wallet_instance(xpub_van, xpub_col, req.mnemonic, master_fingerprint)
+    signed_psbt = signer.sign_psbt(psbt)
+    result = wallet.create_utxos_end(online, signed_psbt, False)
+    return result
+
 
 @router.post("/wallet/listassets",response_model=GetAssetResponseModel)
 def list_assets(wallet_dep: tuple[Wallet, object,str,str]=Depends(get_wallet)):
@@ -162,11 +186,12 @@ def send_begin(req: SendAssetBeginRequestModel, wallet_dep: tuple[Wallet, object
         ]
     }
    
+    default_confirmations = 1 if env_network != 0 else 3
     send_model = SendAssetBeginModel(
         recipient_map=recipient_map,
         donation=False,
         fee_rate=req.fee_rate or 5,
-        min_confirmations=req.min_confirmations or 3
+        min_confirmations=req.min_confirmations if req.min_confirmations is not None else default_confirmations
     )
     print("invoice data", recipient_map, send_model)
     
@@ -180,13 +205,23 @@ class SignPSBT(BaseModel):
     xpub_col: str
     master_fingerprint: str
 
-@router.post("/wallet/sign")
-def sign_psbt(req:SignPSBT):
-    wallet,online = test_wallet_instance(req.xpub_van,req.xpub_col, req.mnemonic,req.master_fingerprint)
-    signed_psbt = wallet.sign_psbt(req.psbt)
 
+
+@router.post("/wallet/sign")
+def sign_psbt(req: SignPSBT):
+    wallet, online = test_wallet_instance(req.xpub_van, req.xpub_col, req.mnemonic, req.master_fingerprint)
+    signed_psbt = wallet.sign_psbt(req.psbt)
     print("signed_psbt", signed_psbt)
     return signed_psbt
+
+
+@router.post("/wallet/offlinesign")
+def offlinesign_psbt(req: SignPSBT):
+    wallet = offline_wallet_instance(req.xpub_van, req.xpub_col, req.mnemonic, req.master_fingerprint)
+    signed_psbt = wallet.sign_psbt(req.psbt)
+    return signed_psbt
+
+
 @router.post("/wallet/sendend", response_model=SendResult)
 def send_begin(req: SendAssetEndRequestModel, wallet_dep: tuple[Wallet, object,str,str]=Depends(get_wallet)):
     wallet, online,xpub_van, xpub_col = wallet_dep
@@ -198,7 +233,8 @@ def generate_invoice(req: RgbInvoiceRequestModel, wallet_dep: tuple[Wallet, obje
     wallet, online,xpub_van, xpub_col = wallet_dep
     assignment = Assignment.FUNGIBLE(req.amount)
     duration_seconds=1500
-    receive = wallet.blind_receive(req.asset_id, assignment, duration_seconds, [PROXY_URL], 3)
+    min_conf = 1 if env_network != 0 else 3
+    receive = wallet.blind_receive(req.asset_id, assignment, duration_seconds, [PROXY_URL], min_conf)
     return receive
 
 # old methot should be removed after prod update
@@ -207,7 +243,8 @@ def generate_invoice(req: RgbInvoiceRequestModel, wallet_dep: tuple[Wallet, obje
     wallet, online,xpub_van, xpub_col = wallet_dep
     assignment = Assignment.FUNGIBLE(req.amount)
     duration_seconds=1500
-    receive = wallet.blind_receive(req.asset_id, assignment, duration_seconds, [PROXY_URL], 3)
+    min_conf = 1 if env_network != 0 else 3
+    receive = wallet.blind_receive(req.asset_id, assignment, duration_seconds, [PROXY_URL], min_conf)
     return receive
 
 @router.post("/wallet/witnessreceive", response_model=ReceiveData)
@@ -215,7 +252,8 @@ def generate_invoice(req: RgbInvoiceRequestModel, wallet_dep: tuple[Wallet, obje
     wallet, online,xpub_van, xpub_col = wallet_dep
     assignment = Assignment.FUNGIBLE(req.amount)
     duration_seconds=1500
-    receive = wallet.witness_receive(req.asset_id, assignment, duration_seconds, [PROXY_URL], 3)
+    min_conf = 1 if env_network != 0 else 3
+    receive = wallet.witness_receive(req.asset_id, assignment, duration_seconds, [PROXY_URL], min_conf)
     return receive
 
 @router.post("/wallet/failtransfers")
