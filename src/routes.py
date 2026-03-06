@@ -43,6 +43,20 @@ class CreateUtxosWithSign(BaseModel):
 class SendAssetEndRequestModel(BaseModel):
     signed_psbt: str
 
+
+class SendBatchBeginRequestModel(BaseModel):
+    """Params for send batch begin – passed directly to wallet.send_begin."""
+    recipient_map: dict[str, List[Recipient]]
+    donation: bool = False
+    fee_rate: int = 5
+    min_confirmations: int = 1
+
+
+class SendBatchWithSignRequestModel(SendBatchBeginRequestModel):
+    """Send batch in one call: begin → sign → end (like createutxos)."""
+    mnemonic: str
+
+
 class CreateUtxosEnd(BaseModel):
     signed_psbt: str
 
@@ -223,10 +237,64 @@ def offlinesign_psbt(req: SignPSBT):
 
 
 @router.post("/wallet/sendend", response_model=SendResult)
-def send_begin(req: SendAssetEndRequestModel, wallet_dep: tuple[Wallet, object,str,str]=Depends(get_wallet)):
+def send_end(req: SendAssetEndRequestModel, wallet_dep: tuple[Wallet, object,str,str]=Depends(get_wallet)):
     wallet, online,xpub_van, xpub_col = wallet_dep
     result = wallet.send_end(online, req.signed_psbt, False)
     return result
+
+
+def _normalize_recipient_map(recipient_map: dict[str, List[Recipient]]) -> dict:
+    """Convert int assignments to Assignment.FUNGIBLE for wallet.send_begin."""
+    out = {}
+    for asset_id, recs in recipient_map.items():
+        out[asset_id] = []
+        for r in recs:
+            asn = r.assignment
+            if isinstance(asn, int):
+                asn = Assignment.FUNGIBLE(asn)
+            out[asset_id].append(
+                Recipient(
+                    recipient_id=r.recipient_id,
+                    assignment=asn,
+                    witness_data=r.witness_data,
+                    transport_endpoints=r.transport_endpoints,
+                )
+            )
+    return out
+
+
+@router.post("/wallet/sendbatchbegin", response_model=str)
+def send_batch_begin(req: SendBatchBeginRequestModel, wallet_dep: tuple[Wallet, object, str, str] = Depends(get_wallet)):
+    """Build PSBT for batch send; params passed directly to wallet.send_begin."""
+    wallet, online, xpub_van, xpub_col = wallet_dep
+    recipient_map = _normalize_recipient_map(req.recipient_map)
+    psbt = wallet.send_begin(online, recipient_map, req.donation, req.fee_rate, req.min_confirmations)
+    return psbt
+
+
+@router.post("/wallet/sendbatchend", response_model=SendResult)
+def send_batch_end(req: SendAssetEndRequestModel, wallet_dep: tuple[Wallet, object, str, str] = Depends(get_wallet)):
+    """Finalize batch send with signed PSBT (like createutxosend)."""
+    wallet, online, xpub_van, xpub_col = wallet_dep
+    result = wallet.send_end(online, req.signed_psbt, False)
+    return result
+
+
+@router.post("/wallet/sendbatch", response_model=SendResult)
+def send_batch_with_sign(
+    req: SendBatchWithSignRequestModel,
+    wallet_dep: tuple[Wallet, object, str, str] = Depends(get_wallet),
+    master_fingerprint: str = Header(..., alias="master-fingerprint"),
+):
+    """Send batch in one call: begin → sign → end (like createutxos)."""
+    wallet, online, xpub_van, xpub_col = wallet_dep
+    recipient_map = _normalize_recipient_map(req.recipient_map)
+    psbt = wallet.send_begin(online, recipient_map, req.donation, req.fee_rate, req.min_confirmations)
+    signer = offline_wallet_instance(xpub_van, xpub_col, req.mnemonic, master_fingerprint)
+    signed_psbt = signer.sign_psbt(psbt)
+    result = wallet.send_end(online, signed_psbt, False)
+    return result
+
 
 @router.post("/wallet/blindreceive", response_model=ReceiveData)
 def generate_invoice(req: RgbInvoiceRequestModel, wallet_dep: tuple[Wallet, object,str,str]=Depends(get_wallet)):
