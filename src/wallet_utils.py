@@ -135,6 +135,23 @@ def restore_wallet_instance(xpub_van: str,xpub_col: str,master_fingerprint:str, 
     }
     return wallet, online
 
+def offline_wallet_instance(xpub_van: str,xpub_col: str,mnemonic: str = None,master_fingerprint: str = None):  
+    client_id=xpub_van
+    wallet_data = WalletData(
+        data_dir=get_wallet_path(client_id),
+        bitcoin_network=NETWORK,
+        database_type=DatabaseType.SQLITE,
+        account_xpub_vanilla=xpub_van,
+        account_xpub_colored=xpub_col,
+        mnemonic=mnemonic,
+        max_allocations_per_utxo=1,
+        vanilla_keychain=vanilla_keychain,
+        master_fingerprint=master_fingerprint,
+        supported_schemas=[AssetSchema.NIA,AssetSchema.CFA,AssetSchema.UDA]
+    ) 
+    wallet = Wallet(wallet_data)
+    return wallet
+
 def test_wallet_instance(xpub_van: str,xpub_col: str,mnemonic: str = None,master_fingerprint: str = None):
     client_id=xpub_van
     # if client_id in wallet_instances:
