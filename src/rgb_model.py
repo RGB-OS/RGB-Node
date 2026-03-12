@@ -81,6 +81,7 @@ class SendAssetBeginRequestModel(BaseModel):
     witness_data: Optional[WitnessData] = None
     fee_rate: Optional[int] = None
     min_confirmations: Optional[int] = None
+    donation: bool = False
 
 class SendAssetBeginModel(BaseModel):
     recipient_map: dict[str, List[Recipient]]

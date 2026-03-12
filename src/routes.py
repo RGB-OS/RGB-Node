@@ -231,7 +231,7 @@ def send_begin(req: SendAssetBeginRequestModel, wallet_dep: tuple[Wallet, object
     default_confirmations = 1 if env_network != 0 else 3
     send_model = SendAssetBeginModel(
         recipient_map=recipient_map,
-        donation=False,
+        donation=req.donation,
         fee_rate=req.fee_rate or 5,
         min_confirmations=req.min_confirmations if req.min_confirmations is not None else default_confirmations
     )
