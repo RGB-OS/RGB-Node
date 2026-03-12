@@ -10,7 +10,7 @@ NETWORK = BitcoinNetwork(env_network)
 BASE_PATH = "./data"
 RESTORED_PATH = './data'
 BACKUP_PATH = './backup'
-vanilla_keychain = 1
+vanilla_keychain = 0
 wallet_instances: dict[str, dict[str, object]] = {}
 INDEXER_URL = os.getenv('INDEXER_URL')
 
