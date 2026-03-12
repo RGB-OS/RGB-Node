@@ -92,6 +92,60 @@ class OperationResult(BaseModel):
     txid: str
     batch_transfer_idx: int
 
+class SendAssetEndRequestModel(BaseModel):
+    signed_psbt: str
+
+
+class SendBatchBeginRequestModel(BaseModel):
+    """Params for send batch begin – passed directly to wallet.send_begin."""
+    recipient_map: dict[str, List[Recipient]]
+    donation: bool = False
+    fee_rate: int = 5
+    min_confirmations: int = 1
+
+
+class SendBatchWithSignRequestModel(SendBatchBeginRequestModel):
+    """Send batch in one call: begin → sign → end (like createutxos)."""
+    mnemonic: str
+
+
+class WatchOnly(BaseModel):
+    xpub: str
+
+
+class CreateUtxosBegin(BaseModel):
+    mnemonic: str | None = None
+    up_to: bool = False
+    num: int = 5
+    size: int = 1000
+    fee_rate: int = 5
+
+
+class CreateUtxosWithSign(BaseModel):
+    """Create UTXOs in one call: begin (load_wallet) → sign (offline_wallet + mnemonic) → end."""
+    mnemonic: str
+    up_to: bool = False
+    num: int = 5
+    size: int = 1000
+    fee_rate: int = 5
+
+
+class CreateUtxosEnd(BaseModel):
+    signed_psbt: str
+
+
+class AssetBalanceRequest(BaseModel):
+    asset_id: str
+
+
+class SignPSBT(BaseModel):
+    mnemonic: str
+    psbt: str
+    xpub_van: str
+    xpub_col: str
+    master_fingerprint: str
+
+
 class Media(BaseModel):
     """Model for list asset"""
     file_path: str

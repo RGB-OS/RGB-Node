@@ -1,13 +1,59 @@
 from typing import List, Optional
 from fastapi import File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
-from src.dependencies import get_wallet,create_wallet
-from rgb_lib import BitcoinNetwork, Wallet,AssetSchema, Assignment
-from src.rgb_model import AssetIfa, AssetNia, Backup, Balance, BtcBalance, DecodeRgbInvoiceRequestModel, DecodeRgbInvoiceResponseModel, FailTransferRequestModel, GetAssetResponseModel, GetFeeEstimateRequestModel, InflateAssetIfaRequestModel, InflateEndRequestModel, IssueAssetIfaRequestModel, IssueAssetNiaRequestModel, ListTransfersRequestModel, OperationResult, ReceiveData, Recipient, RefreshRequestModel, RegisterModel, RgbInvoiceRequestModel, SendAssetBeginModel, SendAssetBeginRequestModel, SendBtcBeginRequestModel, SendBtcEndRequestModel, SendResult, Transfer, Unspent
+from src.dependencies import get_wallet, create_wallet
+from rgb_lib import BitcoinNetwork, Wallet, AssetSchema, Assignment
+from src.rgb_model import (
+    AssetBalanceRequest,
+    AssetIfa,
+    AssetNia,
+    Backup,
+    Balance,
+    BtcBalance,
+    CreateUtxosBegin,
+    CreateUtxosEnd,
+    CreateUtxosWithSign,
+    DecodeRgbInvoiceRequestModel,
+    DecodeRgbInvoiceResponseModel,
+    FailTransferRequestModel,
+    GetAssetResponseModel,
+    GetFeeEstimateRequestModel,
+    InflateAssetIfaRequestModel,
+    InflateEndRequestModel,
+    IssueAssetIfaRequestModel,
+    IssueAssetNiaRequestModel,
+    ListTransfersRequestModel,
+    OperationResult,
+    ReceiveData,
+    Recipient,
+    RefreshRequestModel,
+    RegisterModel,
+    RgbInvoiceRequestModel,
+    SendAssetBeginModel,
+    SendAssetBeginRequestModel,
+    SendAssetEndRequestModel,
+    SendBatchBeginRequestModel,
+    SendBatchWithSignRequestModel,
+    SendBtcBeginRequestModel,
+    SendBtcEndRequestModel,
+    SendResult,
+    SignPSBT,
+    Transfer,
+    Unspent,
+    WatchOnly,
+)
 from fastapi import APIRouter, Depends, Header
 import os
-from src.wallet_utils import BACKUP_PATH, create_wallet_instance, get_backup_path, remove_backup_if_exists, restore_wallet_instance, test_wallet_instance, WalletStateExistsError
+from src.wallet_utils import (
+    BACKUP_PATH,
+    create_wallet_instance,
+    get_backup_path,
+    offline_wallet_instance,
+    remove_backup_if_exists,
+    restore_wallet_instance,
+    test_wallet_instance,
+    WalletStateExistsError,
+)
 from src.refresh_queue import enqueue_refresh_job, get_job_status, get_watcher_status
 import shutil
 import uuid
@@ -24,26 +70,6 @@ invoices = {}
 PROXY_URL = os.getenv('PROXY_ENDPOINT')
 vanilla_keychain = 1
 
-class WatchOnly(BaseModel):
-    xpub: str
-
-class CreateUtxosBegin(BaseModel):
-    mnemonic: str = None
-    up_to: bool = False
-    num: int = 5
-    size: int = 1000
-    fee_rate: int = 5
-
-
-
-class SendAssetEndRequestModel(BaseModel):
-    signed_psbt: str
-
-class CreateUtxosEnd(BaseModel):
-    signed_psbt: str
-
-class AssetBalanceRequest(BaseModel):
-    asset_id: str
 
 @router.post("/wallet/generate_keys")
 def register_wallet():
@@ -90,6 +116,22 @@ def create_utxos_end(req: CreateUtxosEnd, wallet_dep: tuple[Wallet, object,str,s
     wallet, online,xpub_van, xpub_col = wallet_dep
     result = wallet.create_utxos_end(online, req.signed_psbt, False)
     return result
+
+
+@router.post("/wallet/createutxos", response_model=int)
+def create_utxos_with_sign(
+    req: CreateUtxosWithSign,
+    wallet_dep: tuple[Wallet, object, str, str] = Depends(get_wallet),
+    master_fingerprint: str = Header(..., alias="master-fingerprint"),
+):
+    """Create UTXOs: begin via load_wallet, sign via offline_wallet + mnemonic, then end."""
+    wallet, online, xpub_van, xpub_col = wallet_dep
+    psbt = wallet.create_utxos_begin(online, req.up_to, req.num, req.size, req.fee_rate, False)
+    signer = offline_wallet_instance(xpub_van, xpub_col, req.mnemonic, master_fingerprint)
+    signed_psbt = signer.sign_psbt(psbt)
+    result = wallet.create_utxos_end(online, signed_psbt, False)
+    return result
+
 
 @router.post("/wallet/listassets",response_model=GetAssetResponseModel)
 def list_assets(wallet_dep: tuple[Wallet, object,str,str]=Depends(get_wallet)):
@@ -151,6 +193,8 @@ def decode_rgb_invoice(req:DecodeRgbInvoiceRequestModel, wallet_dep: tuple[Walle
 @router.post("/wallet/sendbegin")
 def send_begin(req: SendAssetBeginRequestModel, wallet_dep: tuple[Wallet, object,str,str]=Depends(get_wallet)):
     wallet, online,xpub_van, xpub_col = wallet_dep
+    if req.invoice is None:
+        raise HTTPException(status_code=400, detail="Invoice is required")
     invoice_data = rgb_lib.Invoice(req.invoice).invoice_data()
     resolved_amount = Assignment.FUNGIBLE(req.amount)
     if resolved_amount is None:
@@ -184,31 +228,33 @@ def send_begin(req: SendAssetBeginRequestModel, wallet_dep: tuple[Wallet, object
         ]
     }
    
+    default_confirmations = 1 if env_network != 0 else 3
     send_model = SendAssetBeginModel(
         recipient_map=recipient_map,
         donation=False,
         fee_rate=req.fee_rate or 5,
-        min_confirmations=req.min_confirmations or 3
+        min_confirmations=req.min_confirmations if req.min_confirmations is not None else default_confirmations
     )
     print("invoice data", recipient_map, send_model)
     
     psbt = wallet.send_begin(online, send_model.recipient_map, send_model.donation, send_model.fee_rate, send_model.min_confirmations)
     return psbt
 
-class SignPSBT(BaseModel):
-    mnemonic: str
-    psbt: str
-    xpub_van: str
-    xpub_col: str
-    master_fingerprint: str
-
 @router.post("/wallet/sign")
-def sign_psbt(req:SignPSBT):
-    wallet,online = test_wallet_instance(req.xpub_van,req.xpub_col, req.mnemonic,req.master_fingerprint)
+def sign_psbt(req: SignPSBT):
+    wallet, online = test_wallet_instance(req.xpub_van, req.xpub_col, req.mnemonic, req.master_fingerprint)
     signed_psbt = wallet.sign_psbt(req.psbt)
-
     print("signed_psbt", signed_psbt)
     return signed_psbt
+
+
+@router.post("/wallet/offlinesign")
+def offlinesign_psbt(req: SignPSBT):
+    wallet = offline_wallet_instance(req.xpub_van, req.xpub_col, req.mnemonic, req.master_fingerprint)
+    signed_psbt = wallet.sign_psbt(req.psbt)
+    return signed_psbt
+
+
 @router.post("/wallet/sendend", response_model=SendResult)
 def send_begin(
     req: SendAssetEndRequestModel, 
@@ -231,6 +277,60 @@ def send_begin(
     
     return result
 
+
+def _normalize_recipient_map(recipient_map: dict[str, List[Recipient]]) -> dict:
+    """Convert int assignments to Assignment.FUNGIBLE for wallet.send_begin."""
+    out = {}
+    for asset_id, recs in recipient_map.items():
+        out[asset_id] = []
+        for r in recs:
+            asn = r.assignment
+            if isinstance(asn, int):
+                asn = Assignment.FUNGIBLE(asn)
+            out[asset_id].append(
+                Recipient(
+                    recipient_id=r.recipient_id,
+                    assignment=asn,
+                    witness_data=r.witness_data,
+                    transport_endpoints=r.transport_endpoints,
+                )
+            )
+    return out
+
+
+@router.post("/wallet/sendbatchbegin", response_model=str)
+def send_batch_begin(req: SendBatchBeginRequestModel, wallet_dep: tuple[Wallet, object, str, str] = Depends(get_wallet)):
+    """Build PSBT for batch send; params passed directly to wallet.send_begin."""
+    wallet, online, xpub_van, xpub_col = wallet_dep
+    recipient_map = _normalize_recipient_map(req.recipient_map)
+    psbt = wallet.send_begin(online, recipient_map, req.donation, req.fee_rate, req.min_confirmations)
+    return psbt
+
+
+@router.post("/wallet/sendbatchend", response_model=SendResult)
+def send_batch_end(req: SendAssetEndRequestModel, wallet_dep: tuple[Wallet, object, str, str] = Depends(get_wallet)):
+    """Finalize batch send with signed PSBT (like createutxosend)."""
+    wallet, online, xpub_van, xpub_col = wallet_dep
+    result = wallet.send_end(online, req.signed_psbt, False)
+    return result
+
+
+@router.post("/wallet/sendbatch", response_model=SendResult)
+def send_batch_with_sign(
+    req: SendBatchWithSignRequestModel,
+    wallet_dep: tuple[Wallet, object, str, str] = Depends(get_wallet),
+    master_fingerprint: str = Header(..., alias="master-fingerprint"),
+):
+    """Send batch in one call: begin → sign → end (like createutxos)."""
+    wallet, online, xpub_van, xpub_col = wallet_dep
+    recipient_map = _normalize_recipient_map(req.recipient_map)
+    psbt = wallet.send_begin(online, recipient_map, req.donation, req.fee_rate, req.min_confirmations)
+    signer = offline_wallet_instance(xpub_van, xpub_col, req.mnemonic, master_fingerprint)
+    signed_psbt = signer.sign_psbt(psbt)
+    result = wallet.send_end(online, signed_psbt, False)
+    return result
+
+
 @router.post("/wallet/blindreceive", response_model=ReceiveData)
 def generate_invoice(
     req: RgbInvoiceRequestModel, 
@@ -240,7 +340,8 @@ def generate_invoice(
     wallet, online,xpub_van, xpub_col = wallet_dep
     assignment = Assignment.FUNGIBLE(req.amount)
     duration_seconds=1500
-    receive = wallet.blind_receive(req.asset_id, assignment, duration_seconds, [PROXY_URL], 3)
+    min_conf = 1 if env_network != 0 else 3
+    receive = wallet.blind_receive(req.asset_id, assignment, duration_seconds, [PROXY_URL], min_conf)
     
     try:
         job_id = enqueue_refresh_job(
@@ -268,7 +369,8 @@ def generate_invoice(
     wallet, online,xpub_van, xpub_col = wallet_dep
     assignment = Assignment.FUNGIBLE(req.amount)
     duration_seconds=1500
-    receive = wallet.blind_receive(req.asset_id, assignment, duration_seconds, [PROXY_URL], 3)
+    min_conf = 1 if env_network != 0 else 3
+    receive = wallet.blind_receive(req.asset_id, assignment, duration_seconds, [PROXY_URL], min_conf)
     
     try:
         job_id = enqueue_refresh_job(
@@ -295,7 +397,8 @@ def generate_invoice(
     wallet, online,xpub_van, xpub_col = wallet_dep
     assignment = Assignment.FUNGIBLE(req.amount)
     duration_seconds=1500
-    receive = wallet.witness_receive(req.asset_id, assignment, duration_seconds, [PROXY_URL], 3)
+    min_conf = 1 if env_network != 0 else 3
+    receive = wallet.witness_receive(req.asset_id, assignment, duration_seconds, [PROXY_URL], min_conf)
     
     # Enqueue refresh watcher job for invoice
     try:
